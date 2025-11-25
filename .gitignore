@@ -13,3 +13,6 @@ tokens
 
 # Ignore iac - not creating remote state bucket yet
 infra/
+
+# Ignore scripts
+scripts/
