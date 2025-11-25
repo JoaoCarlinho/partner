@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import authRouter from './handlers/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger, logger } from './middleware/logger.js';
@@ -7,8 +8,12 @@ import { requestLogger, logger } from './middleware/logger.js';
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  credentials: true, // Allow cookies
+}));
 app.use(express.json());
+app.use(cookieParser());
 app.use(requestLogger);
 
 // Health check
