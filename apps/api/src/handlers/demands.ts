@@ -10,9 +10,18 @@ import { validate } from '../middleware/validate.js';
 import { successResponse, errorResponse } from '../lib/response.js';
 import { generateLetterSchema, createCaseSchema, AuditAction } from '@steno/shared';
 import { generateLetter, generateLetterStream, LetterGenerationError } from '../services/ai/letterGenerator.js';
+import { refineLetter, RefinementError } from '../services/ai/letterRefiner.js';
+import { COMMON_REFINEMENT_SUGGESTIONS } from '../services/ai/prompts/letterRefinement.js';
+import { generateDiff } from '../services/diff/textDiff.js';
 import { logger } from '../middleware/logger.js';
 import { prisma } from '../lib/prisma.js';
 import { logAuditEvent } from '../services/audit/auditLogger.js';
+import { z } from 'zod';
+
+// Refinement request schema
+const refineLetterSchema = z.object({
+  instruction: z.string().min(1, 'Instruction is required').max(1000, 'Instruction too long'),
+});
 
 const router = Router();
 
@@ -487,6 +496,394 @@ router.get(
     } catch (error) {
       next(error);
     }
+  }
+);
+
+/**
+ * POST /api/v1/demands/:demandId/refine
+ * Refine a demand letter using AI
+ */
+router.post(
+  '/:demandId/refine',
+  authorize('demands:update'),
+  validate({ body: refineLetterSchema }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const { instruction } = req.body;
+      const userId = req.user!.id;
+      const organizationId = req.user!.organizationId;
+
+      // Get the demand letter
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: { id: demandId, organizationId },
+        include: {
+          case: true,
+        },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      // Prevent refinement of sent letters
+      if (demandLetter.status === 'SENT') {
+        res.status(400).json(
+          errorResponse('Cannot refine sent letters', 'INVALID_STATE')
+        );
+        return;
+      }
+
+      // Save current version before refinement
+      const currentVersion = demandLetter.currentVersion;
+      await prisma.demandLetterVersion.create({
+        data: {
+          demandLetterId: demandId,
+          version: currentVersion,
+          content: demandLetter.content,
+          complianceResult: demandLetter.complianceResult as object,
+          createdBy: userId,
+        },
+      });
+
+      // Refine the letter
+      const result = await refineLetter(
+        demandLetter.content,
+        instruction,
+        {
+          state: 'NY', // TODO: Get from case metadata
+          debtDetails: {
+            principal: Number(demandLetter.case.debtAmount),
+            originDate: new Date().toISOString().split('T')[0],
+            creditorName: demandLetter.case.creditorName,
+          },
+        }
+      );
+
+      // Update the demand letter with new content
+      const newVersion = currentVersion + 1;
+      await prisma.demandLetter.update({
+        where: { id: demandId },
+        data: {
+          content: result.content,
+          complianceResult: result.complianceResult as object,
+          currentVersion: newVersion,
+        },
+      });
+
+      // Save the new version
+      await prisma.demandLetterVersion.create({
+        data: {
+          demandLetterId: demandId,
+          version: newVersion,
+          content: result.content,
+          refinementInstruction: instruction,
+          complianceResult: result.complianceResult as object,
+          createdBy: userId,
+        },
+      });
+
+      // Audit log
+      logAuditEvent(req, {
+        action: AuditAction.DEMAND_LETTER_UPDATED,
+        resourceType: 'DemandLetter',
+        resourceId: demandId,
+        metadata: {
+          refinementInstruction: instruction,
+          fromVersion: currentVersion,
+          toVersion: newVersion,
+          isCompliant: result.complianceResult.isCompliant,
+        },
+      });
+
+      logger.info('Letter refined', {
+        demandLetterId: demandId,
+        version: newVersion,
+        isCompliant: result.complianceResult.isCompliant,
+      });
+
+      res.json(
+        successResponse({
+          id: demandId,
+          content: result.content,
+          version: newVersion,
+          previousVersion: currentVersion,
+          refinementInstruction: instruction,
+          complianceResult: result.complianceResult,
+          diff: result.diff,
+          warnings: result.instructionWarnings,
+        })
+      );
+    } catch (error) {
+      if (error instanceof RefinementError) {
+        logger.error('Letter refinement failed', { error: error.message });
+        res.status(503).json(
+          errorResponse('Letter refinement service unavailable', 'SERVICE_UNAVAILABLE')
+        );
+        return;
+      }
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/demands/:demandId/undo
+ * Undo to previous version
+ */
+router.post(
+  '/:demandId/undo',
+  authorize('demands:update'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const organizationId = req.user!.organizationId;
+
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: { id: demandId, organizationId },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      if (demandLetter.currentVersion <= 1) {
+        res.status(400).json(errorResponse('No previous version to undo to', 'NO_UNDO'));
+        return;
+      }
+
+      // Get previous version
+      const previousVersion = await prisma.demandLetterVersion.findUnique({
+        where: {
+          demandLetterId_version: {
+            demandLetterId: demandId,
+            version: demandLetter.currentVersion - 1,
+          },
+        },
+      });
+
+      if (!previousVersion) {
+        res.status(404).json(errorResponse('Previous version not found', 'NOT_FOUND'));
+        return;
+      }
+
+      // Restore previous version
+      await prisma.demandLetter.update({
+        where: { id: demandId },
+        data: {
+          content: previousVersion.content,
+          complianceResult: previousVersion.complianceResult as object,
+          currentVersion: previousVersion.version,
+        },
+      });
+
+      logAuditEvent(req, {
+        action: AuditAction.DEMAND_LETTER_UPDATED,
+        resourceType: 'DemandLetter',
+        resourceId: demandId,
+        metadata: { action: 'undo', restoredVersion: previousVersion.version },
+      });
+
+      res.json(
+        successResponse({
+          id: demandId,
+          content: previousVersion.content,
+          version: previousVersion.version,
+          complianceResult: previousVersion.complianceResult,
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/demands/:demandId/redo
+ * Redo to next version
+ */
+router.post(
+  '/:demandId/redo',
+  authorize('demands:update'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const organizationId = req.user!.organizationId;
+
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: { id: demandId, organizationId },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      // Get next version
+      const nextVersion = await prisma.demandLetterVersion.findUnique({
+        where: {
+          demandLetterId_version: {
+            demandLetterId: demandId,
+            version: demandLetter.currentVersion + 1,
+          },
+        },
+      });
+
+      if (!nextVersion) {
+        res.status(400).json(errorResponse('No next version to redo to', 'NO_REDO'));
+        return;
+      }
+
+      // Restore next version
+      await prisma.demandLetter.update({
+        where: { id: demandId },
+        data: {
+          content: nextVersion.content,
+          complianceResult: nextVersion.complianceResult as object,
+          currentVersion: nextVersion.version,
+        },
+      });
+
+      logAuditEvent(req, {
+        action: AuditAction.DEMAND_LETTER_UPDATED,
+        resourceType: 'DemandLetter',
+        resourceId: demandId,
+        metadata: { action: 'redo', restoredVersion: nextVersion.version },
+      });
+
+      res.json(
+        successResponse({
+          id: demandId,
+          content: nextVersion.content,
+          version: nextVersion.version,
+          complianceResult: nextVersion.complianceResult,
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/demands/:demandId/diff
+ * Get diff between two versions
+ */
+router.get(
+  '/:demandId/diff',
+  authorize('demands:read'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const { v1, v2 } = req.query;
+      const organizationId = req.user!.organizationId;
+
+      // Verify access
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: { id: demandId, organizationId },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      const version1 = parseInt(v1 as string, 10) || demandLetter.currentVersion - 1;
+      const version2 = parseInt(v2 as string, 10) || demandLetter.currentVersion;
+
+      // Get both versions
+      const [ver1, ver2] = await Promise.all([
+        prisma.demandLetterVersion.findUnique({
+          where: {
+            demandLetterId_version: { demandLetterId: demandId, version: version1 },
+          },
+        }),
+        prisma.demandLetterVersion.findUnique({
+          where: {
+            demandLetterId_version: { demandLetterId: demandId, version: version2 },
+          },
+        }),
+      ]);
+
+      if (!ver1 || !ver2) {
+        res.status(404).json(errorResponse('Version not found', 'NOT_FOUND'));
+        return;
+      }
+
+      const diff = generateDiff(ver1.content, ver2.content);
+
+      res.json(
+        successResponse({
+          version1,
+          version2,
+          diff,
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/demands/:demandId/versions
+ * List all versions of a demand letter
+ */
+router.get(
+  '/:demandId/versions',
+  authorize('demands:read'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const organizationId = req.user!.organizationId;
+
+      // Verify access
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: { id: demandId, organizationId },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      const versions = await prisma.demandLetterVersion.findMany({
+        where: { demandLetterId: demandId },
+        orderBy: { version: 'desc' },
+        select: {
+          id: true,
+          version: true,
+          refinementInstruction: true,
+          createdAt: true,
+          creator: {
+            select: { id: true, email: true },
+          },
+        },
+      });
+
+      res.json(
+        successResponse({
+          currentVersion: demandLetter.currentVersion,
+          versions,
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/demands/refinement-suggestions
+ * Get common refinement suggestions
+ */
+router.get(
+  '/refinement-suggestions',
+  authorize('demands:read'),
+  async (_req: Request, res: Response): Promise<void> => {
+    res.json(successResponse(COMMON_REFINEMENT_SUGGESTIONS));
   }
 );
 
