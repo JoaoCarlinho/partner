@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steno Partner - Design Direction Mockups</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        steno: {
+                            magenta: '#CE11A4',
+                            'deep-magenta': '#B5006A',
+                            purple: '#493087',
+                            navy: '#2F317C',
+                        },
+                        primary: {
+                            DEFAULT: '#493087',
+                            hover: '#3d2771',
+                            light: '#F8F7FC',
+                        },
+                        accent: {
+                            DEFAULT: '#CE11A4',
+                            hover: '#B5006A',
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .view-btn { transition: all 0.2s; }
+        .view-btn.active { background: #493087; color: white; }
+        .dark .view-btn.active { background: #CE11A4; }
+        .mockup-container { transition: opacity 0.3s; }
+        .chat-message { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .pipeline-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .dark .pipeline-card:hover { box-shadow: 0 8px 25px rgba(0,0,0,0.4); }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-[#0F0F12] min-h-screen transition-colors duration-300">
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 bg-white dark:bg-[#1C1C22] border-b border-gray-200 dark:border-gray-800 z-50 px-6 py-3">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="w-8 h-8 bg-gradient-to-br from-steno-magenta to-steno-purple rounded-lg"></div>
+                <span class="font-semibold text-gray-900 dark:text-white">Steno Partner - Design Mockups</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <!-- View Selector -->
+                <div class="flex bg-gray-100 dark:bg-[#0F0F12] rounded-lg p-1">
+                    <button onclick="showView('creditor')" class="view-btn px-4 py-1.5 rounded-md text-sm font-medium text-gray-600 dark:text-gray-400 active" id="btn-creditor">
+                        Creditor Dashboard
+                    </button>
+                    <button onclick="showView('chat')" class="view-btn px-4 py-1.5 rounded-md text-sm font-medium text-gray-600 dark:text-gray-400" id="btn-chat">
+                        AI Chat
+                    </button>
+                    <button onclick="showView('debtor')" class="view-btn px-4 py-1.5 rounded-md text-sm font-medium text-gray-600 dark:text-gray-400" id="btn-debtor">
+                        Debtor Experience
+                    </button>
+                </div>
+                <!-- Theme Toggle -->
+                <button onclick="toggleTheme()" class="p-2 rounded-lg bg-gray-100 dark:bg-[#0F0F12] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800">
+                    <svg id="theme-icon-light" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                    <svg id="theme-icon-dark" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="pt-16">
+        <!-- Creditor Dashboard View -->
+        <div id="view-creditor" class="mockup-container">
+            <div class="flex h-[calc(100vh-4rem)]">
+                <!-- Sidebar -->
+                <aside class="w-64 bg-white dark:bg-[#1C1C22] border-r border-gray-200 dark:border-gray-800 flex flex-col">
+                    <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-gradient-to-br from-steno-magenta to-steno-purple rounded-lg flex items-center justify-center">
+                                <span class="text-white font-bold">S</span>
+                            </div>
+                            <div>
+                                <div class="font-semibold text-gray-900 dark:text-white">Smith & Associates</div>
+                                <div class="text-xs text-gray-500">Law Firm</div>
+                            </div>
+                        </div>
+                    </div>
+                    <nav class="flex-1 p-4">
+                        <div class="space-y-1">
+                            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary dark:bg-steno-magenta/20 dark:text-steno-magenta font-medium">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                                Dashboard
+                            </a>
+                            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                Cases
+                            </a>
+                            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+                                Messages
+                                <span class="ml-auto bg-steno-magenta text-white text-xs px-2 py-0.5 rounded-full">3</span>
+                            </a>
+                            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path></svg>
+                                Templates
+                            </a>
+                            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                                Reports
+                            </a>
+                        </div>
+                        <div class="mt-8">
+                            <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Team</div>
+                            <div class="space-y-1">
+                                <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+                                    <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs">JD</div>
+                                    John Doe
+                                </a>
+                                <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+                                    <div class="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-xs">AS</div>
+                                    Amy Smith
+                                </a>
+                            </div>
+                        </div>
+                    </nav>
+                    <div class="p-4 border-t border-gray-200 dark:border-gray-800">
+                        <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            Settings
+                        </a>
+                    </div>
+                </aside>
+
+                <!-- Main Content Area -->
+                <div class="flex-1 overflow-auto bg-gray-50 dark:bg-[#0F0F12]">
+                    <div class="p-6">
+                        <!-- Header -->
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+                                <p class="text-gray-500 dark:text-gray-400">Welcome back, John. Here's your case overview.</p>
+                            </div>
+                            <button class="bg-primary dark:bg-steno-magenta hover:bg-primary-hover dark:hover:bg-steno-deep-magenta text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                New Demand Letter
+                            </button>
+                        </div>
+
+                        <!-- Stats Cards -->
+                        <div class="grid grid-cols-4 gap-4 mb-6">
+                            <div class="bg-white dark:bg-[#1C1C22] rounded-xl p-4 border border-gray-200 dark:border-gray-800">
+                                <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Cases</div>
+                                <div class="text-2xl font-bold text-gray-900 dark:text-white">65</div>
+                                <div class="text-xs text-green-600 mt-1">+12% from last month</div>
+                            </div>
+                            <div class="bg-white dark:bg-[#1C1C22] rounded-xl p-4 border border-gray-200 dark:border-gray-800">
+                                <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Resolution Rate</div>
+                                <div class="text-2xl font-bold text-gray-900 dark:text-white">72%</div>
+                                <div class="text-xs text-green-600 mt-1">+8% from last month</div>
+                            </div>
+                            <div class="bg-white dark:bg-[#1C1C22] rounded-xl p-4 border border-gray-200 dark:border-gray-800">
+                                <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Avg. Time to Payment</div>
+                                <div class="text-2xl font-bold text-gray-900 dark:text-white">11 days</div>
+                                <div class="text-xs text-green-600 mt-1">-3 days from avg</div>
+                            </div>
+                            <div class="bg-white dark:bg-[#1C1C22] rounded-xl p-4 border border-gray-200 dark:border-gray-800">
+                                <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Recovered</div>
+                                <div class="text-2xl font-bold text-gray-900 dark:text-white">$284,500</div>
+                                <div class="text-xs text-green-600 mt-1">This month</div>
+                            </div>
+                        </div>
+
+                        <!-- Pipeline -->
+                        <div class="bg-white dark:bg-[#1C1C22] rounded-xl border border-gray-200 dark:border-gray-800 p-6 mb-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Case Pipeline</h2>
+                                <div class="flex gap-2">
+                                    <button class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">Filter</button>
+                                    <button class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">Export</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-5 gap-4">
+                                <!-- New -->
+                                <div class="bg-gray-50 dark:bg-[#0F0F12] rounded-lg p-3">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <span class="text-sm font-medium text-gray-600 dark:text-gray-300">New</span>
+                                        <span class="bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs px-2 py-0.5 rounded-full">12</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="pipeline-card bg-white dark:bg-[#1C1C22] p-3 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer transition-all">
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white mb-1">#2024-0895</div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">$2,450</div>
+                                            <div class="text-xs text-gray-400 dark:text-gray-500 mt-2">Created today</div>
+                                        </div>
+                                        <div class="pipeline-card bg-white dark:bg-[#1C1C22] p-3 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer transition-all">
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white mb-1">#2024-0894</div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">$5,100</div>
+                                            <div class="text-xs text-gray-400 dark:text-gray-500 mt-2">Created today</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Invited -->
+                                <div class="bg-gray-50 dark:bg-[#0F0F12] rounded-lg p-3">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <span class="text-sm font-medium text-purple-600 dark:text-purple-400">Invited</span>
+                                        <span class="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-xs px-2 py-0.5 rounded-full">8</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="pipeline-card bg-white dark:bg-[#1C1C22] p-3 rounded-lg border border-purple-200 dark:border-purple-800 cursor-pointer transition-all">
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white mb-1">#2024-0893</div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">$3,200</div>
+                                            <div class="text-xs text-purple-500 mt-2">Invite sent 2d ago</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Engaged -->
+                                <div class="bg-gray-50 dark:bg-[#0F0F12] rounded-lg p-3">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <span class="text-sm font-medium text-sky-600 dark:text-sky-400">Engaged</span>
+                                        <span class="bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 text-xs px-2 py-0.5 rounded-full">15</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="pipeline-card bg-white dark:bg-[#1C1C22] p-3 rounded-lg border border-sky-200 dark:border-sky-800 cursor-pointer transition-all">
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white mb-1">#2024-0892</div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">$4,250</div>
+                                            <div class="text-xs text-sky-500 mt-2">Active conversation</div>
+                                        </div>
+                                        <div class="pipeline-card bg-white dark:bg-[#1C1C22] p-3 rounded-lg border border-sky-200 dark:border-sky-800 cursor-pointer transition-all">
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white mb-1">#2024-0891</div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">$1,800</div>
+                                            <div class="text-xs text-sky-500 mt-2">Reviewing options</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Negotiating -->
+                                <div class="bg-gray-50 dark:bg-[#0F0F12] rounded-lg p-3">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <span class="text-sm font-medium text-amber-600 dark:text-amber-400">Negotiating</span>
+                                        <span class="bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-xs px-2 py-0.5 rounded-full">6</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="pipeline-card bg-white dark:bg-[#1C1C22] p-3 rounded-lg border border-amber-200 dark:border-amber-800 cursor-pointer transition-all">
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white mb-1">#2024-0888</div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">$6,500</div>
+                                            <div class="text-xs text-amber-500 mt-2">Plan proposed</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Resolved -->
+                                <div class="bg-gray-50 dark:bg-[#0F0F12] rounded-lg p-3">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <span class="text-sm font-medium text-emerald-600 dark:text-emerald-400">Resolved</span>
+                                        <span class="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-xs px-2 py-0.5 rounded-full">24</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="pipeline-card bg-white dark:bg-[#1C1C22] p-3 rounded-lg border border-emerald-200 dark:border-emerald-800 cursor-pointer transition-all">
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white mb-1">#2024-0885</div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">$3,100</div>
+                                            <div class="text-xs text-emerald-500 mt-2">Paid in full</div>
+                                        </div>
+                                        <div class="pipeline-card bg-white dark:bg-[#1C1C22] p-3 rounded-lg border border-emerald-200 dark:border-emerald-800 cursor-pointer transition-all">
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white mb-1">#2024-0882</div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">$2,800</div>
+                                            <div class="text-xs text-emerald-500 mt-2">Payment plan active</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity -->
+                        <div class="bg-white dark:bg-[#1C1C22] rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+                            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h2>
+                            <div class="space-y-4">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-900 dark:text-white"><span class="font-medium">Case #2024-0885</span> payment plan completed</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">2 hours ago</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-4 h-4 text-sky-600 dark:text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-900 dark:text-white">New message from debtor on <span class="font-medium">Case #2024-0892</span></p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">3 hours ago</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-steno-magenta/10 flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-4 h-4 text-steno-magenta" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-900 dark:text-white">AI suggested payment plan for <span class="font-medium">Case #2024-0888</span></p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">5 hours ago</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Chat View -->
+        <div id="view-chat" class="mockup-container hidden">
+            <div class="flex h-[calc(100vh-4rem)]">
+                <!-- Chat Sidebar -->
+                <aside class="w-72 bg-white dark:bg-[#1C1C22] border-r border-gray-200 dark:border-gray-800 flex flex-col">
+                    <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+                        <button class="w-full bg-primary dark:bg-steno-magenta hover:bg-primary-hover dark:hover:bg-steno-deep-magenta text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            New Conversation
+                        </button>
+                    </div>
+                    <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+                        <input type="text" placeholder="Search cases..." class="w-full px-3 py-2 bg-gray-100 dark:bg-[#0F0F12] border-0 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500">
+                    </div>
+                    <div class="flex-1 overflow-auto">
+                        <div class="p-2">
+                            <div class="text-xs font-medium text-gray-400 uppercase tracking-wider px-3 py-2">Active Conversations</div>
+                            <div class="space-y-1">
+                                <div class="px-3 py-3 rounded-lg bg-primary/10 dark:bg-steno-magenta/20 cursor-pointer">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-sm font-medium text-gray-900 dark:text-white">#2024-0892</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">2h</span>
+                                    </div>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">AI: I've drafted a warm introduction...</p>
+                                </div>
+                                <div class="px-3 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-sm font-medium text-gray-900 dark:text-white">#2024-0891</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">5h</span>
+                                    </div>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">You: Let's proceed with the plan</p>
+                                </div>
+                                <div class="px-3 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-sm font-medium text-gray-900 dark:text-white">#2024-0888</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">1d</span>
+                                    </div>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">AI: Payment plan options ready</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Chat Main -->
+                <div class="flex-1 flex flex-col bg-gray-50 dark:bg-[#0F0F12]">
+                    <!-- Chat Header -->
+                    <div class="bg-white dark:bg-[#1C1C22] border-b border-gray-200 dark:border-gray-800 px-6 py-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="font-semibold text-gray-900 dark:text-white">Case #2024-0892</h2>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Amount: $4,250 • Debtor joined 3 days ago</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 text-xs px-3 py-1 rounded-full font-medium">Engaged</span>
+                                <button class="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+                                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chat Messages -->
+                    <div class="flex-1 overflow-auto p-6 space-y-4">
+                        <!-- AI Message -->
+                        <div class="chat-message flex gap-3 max-w-3xl">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-steno-magenta to-steno-purple flex items-center justify-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-sm font-medium text-gray-900 dark:text-white">AI Assistant</span>
+                                    <span class="text-xs text-gray-400">10:30 AM</span>
+                                </div>
+                                <div class="bg-white dark:bg-[#1C1C22] rounded-lg rounded-tl-none p-4 border border-gray-200 dark:border-gray-800">
+                                    <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">I've analyzed the debtor's profile and financial situation. Based on similar successful cases, I recommend offering a 6-month payment plan with monthly installments of $708.</p>
+                                    <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">The debtor has indicated they can manage payments between $600-800/month. Here's a draft message I've prepared:</p>
+                                    <div class="bg-gray-50 dark:bg-[#0F0F12] rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                        <p class="text-sm text-gray-600 dark:text-gray-400 italic">"Thank you for sharing your situation with us. We understand managing finances can be challenging. Based on what you've told us, we'd like to offer a payment plan of $708/month over 6 months. This keeps your total manageable while helping you move forward. Would this work for your budget?"</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- User Message -->
+                        <div class="chat-message flex gap-3 max-w-3xl ml-auto flex-row-reverse">
+                            <div class="w-8 h-8 rounded-full bg-primary dark:bg-steno-purple flex items-center justify-center flex-shrink-0">
+                                <span class="text-white text-xs font-medium">JD</span>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1 justify-end">
+                                    <span class="text-xs text-gray-400">10:32 AM</span>
+                                    <span class="text-sm font-medium text-gray-900 dark:text-white">You</span>
+                                </div>
+                                <div class="bg-primary dark:bg-steno-magenta rounded-lg rounded-tr-none p-4 text-white">
+                                    <p class="text-sm">The message looks good. Can you make it slightly warmer? Add something about us being here to help them succeed.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI Response -->
+                        <div class="chat-message flex gap-3 max-w-3xl">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-steno-magenta to-steno-purple flex items-center justify-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-sm font-medium text-gray-900 dark:text-white">AI Assistant</span>
+                                    <span class="text-xs text-gray-400">10:33 AM</span>
+                                </div>
+                                <div class="bg-white dark:bg-[#1C1C22] rounded-lg rounded-tl-none p-4 border border-gray-200 dark:border-gray-800">
+                                    <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">Here's the revised message with a warmer tone:</p>
+                                    <div class="bg-gray-50 dark:bg-[#0F0F12] rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                        <p class="text-sm text-gray-600 dark:text-gray-400 italic">"Thank you for taking the time to share your situation with us - we truly appreciate your openness. We understand that managing finances can feel overwhelming, and we want you to know we're here to help you find a path forward, not to add stress to your life.</p>
+                                        <p class="text-sm text-gray-600 dark:text-gray-400 italic mt-2">Based on what you've shared, we'd like to offer a payment plan of $708/month over 6 months. Our goal is to work together on a solution that fits your budget and helps you move toward financial peace of mind. Does this feel manageable for you?"</p>
+                                    </div>
+                                    <div class="flex gap-2 mt-3">
+                                        <button class="bg-primary dark:bg-steno-magenta hover:bg-primary-hover dark:hover:bg-steno-deep-magenta text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">Send to Debtor</button>
+                                        <button class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">Edit Further</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chat Input -->
+                    <div class="bg-white dark:bg-[#1C1C22] border-t border-gray-200 dark:border-gray-800 p-4">
+                        <div class="flex gap-3 items-end max-w-4xl mx-auto">
+                            <div class="flex-1 bg-gray-100 dark:bg-[#0F0F12] rounded-lg p-3">
+                                <textarea rows="1" placeholder="Ask AI to help with this case..." class="w-full bg-transparent border-0 resize-none text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none"></textarea>
+                            </div>
+                            <button class="bg-primary dark:bg-steno-magenta hover:bg-primary-hover dark:hover:bg-steno-deep-magenta text-white p-3 rounded-lg transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Document Panel -->
+                <aside class="w-96 bg-white dark:bg-[#1C1C22] border-l border-gray-200 dark:border-gray-800 flex flex-col">
+                    <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-medium text-gray-900 dark:text-white">Demand Letter</h3>
+                            <div class="flex gap-1">
+                                <button class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded text-gray-500">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                </button>
+                                <button class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded text-gray-500">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-auto p-4">
+                        <div class="prose prose-sm dark:prose-invert max-w-none">
+                            <div class="bg-gray-50 dark:bg-[#0F0F12] rounded-lg p-4 text-sm text-gray-700 dark:text-gray-300 font-mono leading-relaxed">
+                                <p class="mb-4"><strong>Smith & Associates, LLP</strong><br>
+                                123 Legal Street, Suite 400<br>
+                                New York, NY 10001</p>
+
+                                <p class="mb-4">November 25, 2024</p>
+
+                                <p class="mb-4">RE: Outstanding Balance - Account #48291<br>
+                                Amount Due: $4,250.00</p>
+
+                                <p class="mb-4">Dear [Debtor Name],</p>
+
+                                <p class="mb-4">We are writing regarding the above-referenced account. Our records indicate an outstanding balance of $4,250.00.</p>
+
+                                <p class="mb-4 bg-yellow-100 dark:bg-yellow-900/30 -mx-2 px-2 py-1 rounded">This is an attempt to collect a debt. Any information obtained will be used for that purpose.</p>
+
+                                <p class="mb-4">Unless you notify this office within 30 days after receiving this notice that you dispute the validity of this debt...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4 border-t border-gray-200 dark:border-gray-800">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">Document Status</div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <span class="text-sm text-gray-700 dark:text-gray-300">FDCPA Compliant</span>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+
+        <!-- Debtor Experience View -->
+        <div id="view-debtor" class="mockup-container hidden">
+            <div class="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-[#F5F5FA] to-white dark:from-[#0F0F12] dark:to-[#1C1C22]">
+                <div class="max-w-2xl mx-auto px-6 py-12">
+                    <!-- Progress -->
+                    <div class="mb-8">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-500 dark:text-gray-400">Your Progress</span>
+                            <span class="text-sm font-medium text-primary dark:text-steno-magenta">Step 3 of 5</span>
+                        </div>
+                        <div class="h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                            <div class="h-full bg-gradient-to-r from-steno-purple to-steno-magenta rounded-full" style="width: 60%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Welcome Card -->
+                    <div class="bg-white dark:bg-[#1C1C22] rounded-2xl shadow-lg border border-gray-100 dark:border-gray-800 overflow-hidden mb-6">
+                        <!-- AI Header -->
+                        <div class="bg-gradient-to-r from-steno-navy to-steno-purple p-6 text-white">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                </div>
+                                <div>
+                                    <div class="font-medium">Steno Assistant</div>
+                                    <div class="text-sm text-white/70">Here to help you find a solution</div>
+                                </div>
+                            </div>
+                            <p class="text-white/90 leading-relaxed">Let's work together to create a payment plan that fits your budget. There's no judgment here - we just want to help you move forward.</p>
+                        </div>
+
+                        <!-- Content -->
+                        <div class="p-6">
+                            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Let's find what works for you</h2>
+                            <p class="text-gray-600 dark:text-gray-400 mb-6">Based on what you've shared, I have a few payment options to suggest. Remember, we can always adjust these together.</p>
+
+                            <!-- Payment Options -->
+                            <div class="space-y-3 mb-6">
+                                <label class="block">
+                                    <input type="radio" name="plan" class="sr-only peer">
+                                    <div class="p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 peer-checked:border-steno-purple dark:peer-checked:border-steno-magenta cursor-pointer hover:border-gray-300 dark:hover:border-gray-600 transition-colors">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="font-medium text-gray-900 dark:text-white">6 Monthly Payments</span>
+                                            <span class="text-lg font-bold text-primary dark:text-steno-magenta">$708/mo</span>
+                                        </div>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">Pay off in 6 months with consistent payments</p>
+                                    </div>
+                                </label>
+
+                                <label class="block">
+                                    <input type="radio" name="plan" class="sr-only peer" checked>
+                                    <div class="p-4 rounded-xl border-2 border-steno-purple dark:border-steno-magenta bg-primary/5 dark:bg-steno-magenta/10 cursor-pointer transition-colors">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-medium text-gray-900 dark:text-white">9 Monthly Payments</span>
+                                                <span class="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs px-2 py-0.5 rounded-full">Recommended</span>
+                                            </div>
+                                            <span class="text-lg font-bold text-primary dark:text-steno-magenta">$472/mo</span>
+                                        </div>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">Lower monthly payment with a bit more time</p>
+                                    </div>
+                                </label>
+
+                                <label class="block">
+                                    <input type="radio" name="plan" class="sr-only peer">
+                                    <div class="p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 peer-checked:border-steno-purple dark:peer-checked:border-steno-magenta cursor-pointer hover:border-gray-300 dark:hover:border-gray-600 transition-colors">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="font-medium text-gray-900 dark:text-white">12 Monthly Payments</span>
+                                            <span class="text-lg font-bold text-primary dark:text-steno-magenta">$354/mo</span>
+                                        </div>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">Smallest monthly amount, spread over a year</p>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <!-- Custom Option -->
+                            <button class="w-full text-center text-sm text-primary dark:text-steno-magenta hover:underline mb-6">
+                                None of these work? Let's create a custom plan together
+                            </button>
+
+                            <!-- Actions -->
+                            <div class="flex gap-3">
+                                <button class="flex-1 bg-primary dark:bg-steno-magenta hover:bg-primary-hover dark:hover:bg-steno-deep-magenta text-white py-3 px-4 rounded-xl font-medium transition-colors">
+                                    This Looks Good
+                                </button>
+                                <button class="px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium transition-colors">
+                                    I Have Questions
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Support Note -->
+                    <div class="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 border border-emerald-100 dark:border-emerald-800">
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </div>
+                            <div>
+                                <p class="text-sm text-emerald-800 dark:text-emerald-300 font-medium mb-1">You're making progress!</p>
+                                <p class="text-sm text-emerald-700 dark:text-emerald-400">Taking this step shows real commitment to resolving things. We're here to support you every step of the way.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Help Link -->
+                    <div class="mt-6 text-center">
+                        <a href="#" class="text-sm text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-steno-magenta">
+                            Need to talk to someone? Connect with a public defender
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function showView(viewId) {
+            // Hide all views
+            document.querySelectorAll('.mockup-container').forEach(el => {
+                el.classList.add('hidden');
+            });
+            // Show selected view
+            document.getElementById('view-' + viewId).classList.remove('hidden');
+
+            // Update buttons
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById('btn-' + viewId).classList.add('active');
+        }
+
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+        }
+
+        // Initialize
+        showView('creditor');
+    </script>
+</body>
+</html>

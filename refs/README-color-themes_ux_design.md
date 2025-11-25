@@ -10,4 +10,12 @@ Warm Magenta - Energy and action, good for CTAs
 Clean Light - Cursor-inspired minimal
 Professional Dark - Dark mode option
 Adaptive Dual - Context-aware (purple for creditors, navy for debtors)
-Open the file in your browser to explore the themes interactively. 
+Open the file in your browser to explore the themes interactively.
+
+I've created docs/ux-design-directions.html with full-screen interactive mockups. Features:
+Theme Toggle - Switch between Professional Purple (light) and Professional Dark
+Three View Tabs:
+Creditor Dashboard - Sidebar nav, stats cards, Kanban pipeline, activity feed
+AI Chat - Cursor-like interface with conversation list, chat messages, document panel
+Debtor Experience - Calming, therapist-like flow with progress indicator, payment plan selection
+Open in your browser to explore all three views with the theme toggle.
