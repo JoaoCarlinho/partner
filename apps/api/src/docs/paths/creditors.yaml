@@ -1,0 +1,370 @@
+# Creditor Endpoints
+paths:
+  /creditors/dashboard:
+    get:
+      tags:
+        - Creditors
+      summary: Get creditor dashboard
+      description: Get dashboard summary for creditors
+      operationId: getCreditorDashboard
+      responses:
+        '200':
+          description: Dashboard retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      totalCases:
+                        type: integer
+                      activePlans:
+                        type: integer
+                      pendingNegotiations:
+                        type: integer
+                      resolvedThisMonth:
+                        type: integer
+                      totalOutstanding:
+                        type: number
+                      totalCollected:
+                        type: number
+                      collectionRate:
+                        type: number
+                      recentActivity:
+                        type: array
+                        items:
+                          type: object
+
+  /creditors/cases:
+    get:
+      tags:
+        - Creditors
+      summary: List creditor cases
+      description: Get all cases for the creditor
+      operationId: listCreditorCases
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: hasActivePlan
+          in: query
+          schema:
+            type: boolean
+        - name: minAmount
+          in: query
+          schema:
+            type: number
+        - name: maxAmount
+          in: query
+          schema:
+            type: number
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Cases retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Case'
+                  meta:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Creditors
+      summary: Create case
+      description: Create a new debt case
+      operationId: createCreditorCase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - debtorEmail
+                - originalAmount
+              properties:
+                debtorEmail:
+                  type: string
+                  format: email
+                debtorFirstName:
+                  type: string
+                debtorLastName:
+                  type: string
+                originalAmount:
+                  type: number
+                accountReference:
+                  type: string
+                debtType:
+                  type: string
+                  enum: [credit_card, medical, student_loan, personal_loan, utility, other]
+                originationDate:
+                  type: string
+                  format: date
+                lastPaymentDate:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: Case created
+
+  /creditors/templates:
+    get:
+      tags:
+        - Creditors
+      summary: List letter templates
+      description: Get available letter templates
+      operationId: listLetterTemplates
+      responses:
+        '200':
+          description: Templates retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        type:
+                          type: string
+                          enum: [initial_contact, follow_up, payment_reminder, settlement_offer, final_notice]
+                        isDefault:
+                          type: boolean
+                        preview:
+                          type: string
+
+    post:
+      tags:
+        - Creditors
+      summary: Create letter template
+      description: Create a custom letter template
+      operationId: createLetterTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - type
+                - content
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                content:
+                  type: string
+                  description: Template content with placeholders
+                variables:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Template created
+
+  /creditors/letters/generate:
+    post:
+      tags:
+        - Creditors
+      summary: Generate letter
+      description: Generate a letter using AI
+      operationId: generateLetter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - caseId
+                - templateId
+              properties:
+                caseId:
+                  type: string
+                  format: uuid
+                templateId:
+                  type: string
+                  format: uuid
+                customizations:
+                  type: object
+                  properties:
+                    tone:
+                      type: string
+                      enum: [formal, friendly, firm, empathetic]
+                    includeOptions:
+                      type: boolean
+                    additionalContext:
+                      type: string
+      responses:
+        '200':
+          description: Letter generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      content:
+                        type: string
+                      complianceCheck:
+                        type: object
+                        properties:
+                          passed:
+                            type: boolean
+                          issues:
+                            type: array
+                            items:
+                              type: string
+                      invitationLink:
+                        type: string
+                        format: uri
+
+  /creditors/letters/{letterId}/send:
+    post:
+      tags:
+        - Creditors
+      summary: Send letter
+      description: Send a generated letter to the debtor
+      operationId: sendLetter
+      parameters:
+        - name: letterId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deliveryMethod:
+                  type: string
+                  enum: [email, mail, both]
+                  default: email
+                scheduledFor:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Letter sent
+
+  /creditors/compliance:
+    get:
+      tags:
+        - Creditors
+      summary: Get compliance status
+      description: Get FDCPA compliance status and history
+      operationId: getComplianceStatus
+      parameters:
+        - name: caseId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Compliance status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      overallScore:
+                        type: number
+                      issues:
+                        type: array
+                        items:
+                          type: object
+                      recommendations:
+                        type: array
+                        items:
+                          type: string
+                      communicationLog:
+                        type: array
+                        items:
+                          type: object
+
+  /creditors/analytics:
+    get:
+      tags:
+        - Creditors
+      summary: Get creditor analytics
+      description: Get analytics and reporting data
+      operationId: getCreditorAnalytics
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: groupBy
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+      responses:
+        '200':
+          description: Analytics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      collectionMetrics:
+                        type: object
+                      resolutionRates:
+                        type: object
+                      planPerformance:
+                        type: object
+                      communicationStats:
+                        type: object
+                      trends:
+                        type: array
+                        items:
+                          type: object
