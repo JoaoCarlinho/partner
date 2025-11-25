@@ -8,6 +8,7 @@ import auditLogsRouter from './handlers/auditLogs.js';
 import templatesRouter from './handlers/templates.js';
 import complianceRouter from './handlers/compliance.js';
 import demandsRouter from './handlers/demands.js';
+import invitationsRouter from './handlers/invitations.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger, logger } from './middleware/logger.js';
 import { requestId } from './middleware/requestId.js';
@@ -68,6 +69,7 @@ app.use('/api/v1/audit-logs', auditLogsRouter);
 app.use('/api/v1/templates', templatesRouter);
 app.use('/api/v1/compliance', complianceRouter);
 app.use('/api/v1/demands', demandsRouter);
+app.use('/api/v1/invitations', invitationsRouter); // Public - no auth required
 
 // Error handling (must be last)
 app.use(errorHandler);

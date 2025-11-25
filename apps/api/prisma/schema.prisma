@@ -243,20 +243,26 @@ model Case {
 }
 
 model DemandLetter {
-  id                 String       @id @default(uuid())
-  organizationId     String       @map("organization_id")
-  caseId             String       @map("case_id")
-  templateId         String?      @map("template_id")
-  content            String
-  paraphrasedContent String?      @map("paraphrased_content")
-  complianceResult   Json?        @map("compliance_result")
-  status             LetterStatus @default(DRAFT)
-  currentVersion     Int          @default(1) @map("current_version")
-  invitationToken    String?      @unique @map("invitation_token")
-  invitationExpiresAt DateTime?   @map("invitation_expires_at")
-  sentAt             DateTime?    @map("sent_at")
-  createdAt          DateTime     @default(now()) @map("created_at")
-  updatedAt          DateTime     @updatedAt @map("updated_at")
+  id                      String       @id @default(uuid())
+  organizationId          String       @map("organization_id")
+  caseId                  String       @map("case_id")
+  templateId              String?      @map("template_id")
+  content                 String
+  paraphrasedContent      String?      @map("paraphrased_content")
+  complianceResult        Json?        @map("compliance_result")
+  status                  LetterStatus @default(DRAFT)
+  currentVersion          Int          @default(1) @map("current_version")
+  invitationToken         String?      @unique @map("invitation_token")
+  invitationTokenId       String?      @unique @map("invitation_token_id")
+  invitationExpiresAt     DateTime?    @map("invitation_expires_at")
+  invitationUsageLimit    Int          @default(1) @map("invitation_usage_limit")
+  invitationUsageCount    Int          @default(0) @map("invitation_usage_count")
+  invitationRevokedAt     DateTime?    @map("invitation_revoked_at")
+  invitationCreatedAt     DateTime?    @map("invitation_created_at")
+  invitationPayload       Json?        @map("invitation_payload")
+  sentAt                  DateTime?    @map("sent_at")
+  createdAt               DateTime     @default(now()) @map("created_at")
+  updatedAt               DateTime     @updatedAt @map("updated_at")
 
   case     Case      @relation(fields: [caseId], references: [id])
   template Template? @relation(fields: [templateId], references: [id])
@@ -264,6 +270,7 @@ model DemandLetter {
 
   @@index([caseId])
   @@index([invitationToken])
+  @@index([invitationTokenId])
   @@map("demand_letters")
 }
 
