@@ -6,6 +6,7 @@ import usersRouter from './handlers/users.js';
 import organizationsRouter from './handlers/organizations.js';
 import auditLogsRouter from './handlers/auditLogs.js';
 import templatesRouter from './handlers/templates.js';
+import complianceRouter from './handlers/compliance.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger, logger } from './middleware/logger.js';
 import { requestId } from './middleware/requestId.js';
@@ -64,6 +65,7 @@ app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/organizations', organizationsRouter);
 app.use('/api/v1/audit-logs', auditLogsRouter);
 app.use('/api/v1/templates', templatesRouter);
+app.use('/api/v1/compliance', complianceRouter);
 
 // Error handling (must be last)
 app.use(errorHandler);
