@@ -1,0 +1,99 @@
+/**
+ * Audit actions for compliance logging
+ * All sensitive operations must be logged with these action types
+ */
+export enum AuditAction {
+  // Authentication events
+  AUTH_LOGIN = 'AUTH_LOGIN',
+  AUTH_LOGOUT = 'AUTH_LOGOUT',
+  AUTH_FAILED_LOGIN = 'AUTH_FAILED_LOGIN',
+  AUTH_PASSWORD_RESET_REQUESTED = 'AUTH_PASSWORD_RESET_REQUESTED',
+  AUTH_PASSWORD_RESET_COMPLETED = 'AUTH_PASSWORD_RESET_COMPLETED',
+  AUTH_EMAIL_VERIFIED = 'AUTH_EMAIL_VERIFIED',
+
+  // User management
+  USER_CREATED = 'USER_CREATED',
+  USER_UPDATED = 'USER_UPDATED',
+  USER_ROLE_CHANGED = 'USER_ROLE_CHANGED',
+  USER_DELETED = 'USER_DELETED',
+
+  // Organization management
+  ORG_SETTINGS_UPDATED = 'ORG_SETTINGS_UPDATED',
+  ORG_USER_INVITED = 'ORG_USER_INVITED',
+  ORG_INVITE_ACCEPTED = 'ORG_INVITE_ACCEPTED',
+
+  // Demand letter operations
+  DEMAND_CREATED = 'DEMAND_CREATED',
+  DEMAND_UPDATED = 'DEMAND_UPDATED',
+  DEMAND_SENT = 'DEMAND_SENT',
+  DEMAND_APPROVED = 'DEMAND_APPROVED',
+
+  // Case operations
+  CASE_CREATED = 'CASE_CREATED',
+  CASE_UPDATED = 'CASE_UPDATED',
+  CASE_STATUS_CHANGED = 'CASE_STATUS_CHANGED',
+
+  // Messaging
+  MESSAGE_SENT = 'MESSAGE_SENT',
+  MESSAGE_RECEIVED = 'MESSAGE_RECEIVED',
+
+  // Payment plans
+  PLAN_PROPOSED = 'PLAN_PROPOSED',
+  PLAN_ACCEPTED = 'PLAN_ACCEPTED',
+  PLAN_REJECTED = 'PLAN_REJECTED',
+  PLAN_COUNTERED = 'PLAN_COUNTERED',
+  PAYMENT_RECORDED = 'PAYMENT_RECORDED',
+
+  // Data access
+  DEBTOR_DATA_ACCESSED = 'DEBTOR_DATA_ACCESSED',
+  DEBTOR_PROFILE_UPDATED = 'DEBTOR_PROFILE_UPDATED',
+
+  // Template management
+  TEMPLATE_CREATED = 'TEMPLATE_CREATED',
+  TEMPLATE_UPDATED = 'TEMPLATE_UPDATED',
+  TEMPLATE_DELETED = 'TEMPLATE_DELETED',
+
+  // Audit log access
+  AUDIT_LOGS_ACCESSED = 'AUDIT_LOGS_ACCESSED',
+}
+
+/**
+ * Resource types that can be audited
+ */
+export type AuditResourceType =
+  | 'User'
+  | 'Organization'
+  | 'Case'
+  | 'DemandLetter'
+  | 'Message'
+  | 'PaymentPlan'
+  | 'Payment'
+  | 'Template'
+  | 'Session'
+  | 'DebtorProfile';
+
+/**
+ * Metadata for specific audit actions
+ */
+export interface AuditLoginMetadata {
+  email: string;
+  success: boolean;
+  reason?: string;
+}
+
+export interface AuditRoleChangeMetadata {
+  previousRole: string;
+  newRole: string;
+  changedBy: string;
+}
+
+export interface AuditDataAccessMetadata {
+  fields?: string[];
+  reason?: string;
+}
+
+export type AuditMetadata =
+  | AuditLoginMetadata
+  | AuditRoleChangeMetadata
+  | AuditDataAccessMetadata
+  | Record<string, unknown>;
