@@ -1,5 +1,12 @@
+# process docs
 docs/
+
+# macOS files
 .DS_Store
+# agile agent commands
 CLAUDE.md
 .claude/
 bmad/
+
+# Ignore secress
+tokens
