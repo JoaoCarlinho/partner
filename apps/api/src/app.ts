@@ -3,6 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import authRouter from './handlers/auth.js';
 import usersRouter from './handlers/users.js';
+import organizationsRouter from './handlers/organizations.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger, logger } from './middleware/logger.js';
 
@@ -26,6 +27,7 @@ app.get('/health', (_req, res) => {
 // API Routes
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', usersRouter);
+app.use('/api/v1/organizations', organizationsRouter);
 
 // Error handling
 app.use(errorHandler);
