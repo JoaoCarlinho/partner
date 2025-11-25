@@ -92,9 +92,9 @@ describe('Token utilities', () => {
       expect(result.expiresAt).toBeInstanceOf(Date);
     });
 
-    it('should set expiry to 1 hour from now', () => {
+    it('should set expiry to 24 hours from now', () => {
       const result = generatePasswordResetToken();
-      const expectedExpiry = Date.now() + 60 * 60 * 1000;
+      const expectedExpiry = Date.now() + 24 * 60 * 60 * 1000;
 
       // Allow 1 minute tolerance
       expect(result.expiresAt.getTime()).toBeGreaterThan(expectedExpiry - 60000);

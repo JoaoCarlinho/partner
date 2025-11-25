@@ -69,13 +69,13 @@ export function generateEmailVerificationToken(): { token: string; hash: string;
 
 /**
  * Generate password reset token
- * Token expires in 1 hour
+ * Token expires in 24 hours per Story 1-3 AC2
  */
 export function generatePasswordResetToken(): { token: string; hash: string; expiresAt: Date } {
   const token = generateSecureToken();
   const hash = hashToken(token);
   const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + 1);
+  expiresAt.setHours(expiresAt.getHours() + 24);
 
   return { token, hash, expiresAt };
 }

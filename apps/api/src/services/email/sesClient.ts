@@ -76,22 +76,57 @@ export async function sendPasswordResetEmail(
 
   await sendEmail({
     to: email,
-    subject: 'Reset your password - Steno',
+    subject: 'Reset Your Steno Password',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #493087;">Password Reset Request</h1>
-        <p>We received a request to reset your password. Click the link below to set a new password:</p>
+        <p>You requested a password reset for your Steno account.</p>
+        <p>Click the link below to set a new password:</p>
         <p style="margin: 24px 0;">
           <a href="${resetUrl}"
              style="background-color: #493087; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
             Reset Password
           </a>
         </p>
-        <p style="color: #666;">This link will expire in 1 hour.</p>
-        <p style="color: #666; font-size: 12px;">If you didn't request a password reset, you can safely ignore this email.</p>
+        <p style="color: #666;">This link will expire in 24 hours.</p>
+        <p style="color: #666; font-size: 12px;">If you didn't request this reset, please ignore this email or contact support if you have concerns.</p>
       </div>
     `,
-    text: `Reset your password by visiting: ${resetUrl}`,
+    text: `You requested a password reset for your Steno account.\n\nReset your password by visiting: ${resetUrl}\n\nThis link expires in 24 hours.\n\nIf you didn't request this reset, please ignore this email.`,
+  });
+}
+
+/**
+ * Send password changed confirmation email
+ */
+export async function sendPasswordChangedEmail(
+  email: string
+): Promise<void> {
+  const timestamp = new Date().toLocaleString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    timeZoneName: 'short',
+  });
+
+  await sendEmail({
+    to: email,
+    subject: 'Your Steno Password Has Been Changed',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #493087;">Password Changed Successfully</h1>
+        <p>Your Steno account password was successfully changed on:</p>
+        <p style="font-weight: bold; margin: 16px 0;">${timestamp}</p>
+        <p style="color: #d32f2f; font-weight: bold;">If you did not make this change, please contact support immediately.</p>
+        <p style="color: #666; margin-top: 24px;">
+          Contact support: <a href="mailto:support@steno.com">support@steno.com</a>
+        </p>
+      </div>
+    `,
+    text: `Your Steno account password was successfully changed on ${timestamp}.\n\nIf you did not make this change, please contact support immediately at support@steno.com.`,
   });
 }
 
