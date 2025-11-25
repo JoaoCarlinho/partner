@@ -2,10 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import authRouter from './handlers/auth.js';
+import usersRouter from './handlers/users.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger, logger } from './middleware/logger.js';
 
 const app = express();
+export { app };
 
 // Middleware
 app.use(cors({
@@ -23,6 +25,7 @@ app.get('/health', (_req, res) => {
 
 // API Routes
 app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/users', usersRouter);
 
 // Error handling
 app.use(errorHandler);

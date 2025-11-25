@@ -3,12 +3,15 @@ import {
   registerSchema,
   verifyEmailSchema,
   loginSchema,
+  requestPasswordResetSchema,
+  confirmPasswordResetSchema,
   Role
 } from '@steno/shared';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import {
   generateEmailVerificationToken,
+  generatePasswordResetToken,
   hashToken,
   generateAccessToken,
   generateCsrfToken,
@@ -16,7 +19,7 @@ import {
 } from '../lib/tokens.js';
 import { Errors } from '../lib/errors.js';
 import { sendCreated, sendSuccess } from '../lib/response.js';
-import { sendVerificationEmail } from '../services/email/sesClient.js';
+import { sendVerificationEmail, sendPasswordResetEmail, sendPasswordChangedEmail } from '../services/email/sesClient.js';
 import { setCsrfCookie } from '../middleware/csrf.js';
 import { authenticate } from '../middleware/authenticate.js';
 
@@ -434,6 +437,154 @@ router.get('/me', authenticate, async (req: Request, res: Response, next: NextFu
         id: user.organization.id,
         name: user.organization.name,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/auth/password-reset/request
+ * Request password reset email
+ *
+ * Story 1-3 Acceptance Criteria:
+ * AC1: Request password reset by providing email address
+ * AC2: Secure, time-limited token generated (24 hours expiration)
+ */
+router.post('/password-reset/request', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Validate input
+    const validation = requestPasswordResetSchema.safeParse(req.body);
+    if (!validation.success) {
+      throw Errors.validation('Invalid email format');
+    }
+
+    const { email } = validation.data;
+
+    // Query user by email (AC1)
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      sendSuccess(res, {
+        message: 'If an account exists with this email, a reset link has been sent.',
+      });
+      return;
+    }
+
+    // Invalidate any existing reset tokens for user
+    await prisma.passwordResetToken.deleteMany({
+      where: { userId: user.id },
+    });
+
+    // Generate secure token with 24-hour expiration (AC2)
+    const { token, hash, expiresAt } = generatePasswordResetToken();
+
+    // Store token with expiration
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: hash,
+        expiresAt,
+      },
+    });
+
+    // Send reset email
+    try {
+      await sendPasswordResetEmail(email, token);
+    } catch (emailError) {
+      console.error('Failed to send password reset email:', emailError);
+    }
+
+    sendSuccess(res, {
+      message: 'If an account exists with this email, a reset link has been sent.',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/auth/password-reset/confirm
+ * Confirm password reset with token
+ *
+ * Story 1-3 Acceptance Criteria:
+ * AC3: Token is single-use (invalidated after use)
+ * AC4: Password change with token validation
+ * AC5: Email notification sent after password is changed
+ */
+router.post('/password-reset/confirm', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Validate input
+    const validation = confirmPasswordResetSchema.safeParse(req.body);
+    if (!validation.success) {
+      const fieldErrors: Record<string, string[]> = {};
+      validation.error.errors.forEach((err) => {
+        const field = err.path.join('.');
+        if (!fieldErrors[field]) fieldErrors[field] = [];
+        fieldErrors[field].push(err.message);
+      });
+      throw Errors.validation('Invalid reset data', fieldErrors);
+    }
+
+    const { token, password } = validation.data;
+    const tokenHash = hashToken(token);
+
+    // Find token and validate (AC3, AC4)
+    const resetToken = await prisma.passwordResetToken.findFirst({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    // Use same error for all failure cases to prevent enumeration
+    if (!resetToken) {
+      throw Errors.validation('Invalid or expired reset token');
+    }
+
+    // Validate token not expired
+    if (resetToken.expiresAt < new Date()) {
+      await prisma.passwordResetToken.delete({
+        where: { id: resetToken.id },
+      });
+      throw Errors.validation('Invalid or expired reset token');
+    }
+
+    // Validate token not already used (AC3)
+    if (resetToken.usedAt) {
+      throw Errors.validation('Invalid or expired reset token');
+    }
+
+    // Hash new password
+    const passwordHash = await hashPassword(password);
+
+    // Update user password
+    await prisma.user.update({
+      where: { id: resetToken.userId },
+      data: { passwordHash },
+    });
+
+    // Mark token as used (AC3)
+    await prisma.passwordResetToken.update({
+      where: { id: resetToken.id },
+      data: { usedAt: new Date() },
+    });
+
+    // Invalidate all existing sessions for user (force re-login)
+    await prisma.session.deleteMany({
+      where: { userId: resetToken.userId },
+    });
+
+    // Send password changed notification email (AC5)
+    try {
+      await sendPasswordChangedEmail(resetToken.user.email);
+    } catch (emailError) {
+      console.error('Failed to send password change notification:', emailError);
+    }
+
+    sendSuccess(res, {
+      message: 'Password reset successfully. Please log in with your new password.',
     });
   } catch (error) {
     next(error);
