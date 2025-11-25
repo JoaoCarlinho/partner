@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { Role } from '@steno/shared';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
-const JWT_EXPIRES_IN = '15m';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h'; // Default 8 hours per AC4
 const REFRESH_TOKEN_EXPIRES_IN = '7d';
 
 export interface JwtPayload {
@@ -90,4 +90,26 @@ export function generateInviteCode(): { code: string; expiresAt: Date } {
   expiresAt.setDate(expiresAt.getDate() + 7);
 
   return { code, expiresAt };
+}
+
+/**
+ * Generate CSRF token for session protection
+ */
+export function generateCsrfToken(): string {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+/**
+ * Generate session token for login
+ * Token expires in 8 hours
+ */
+export function generateSessionToken(): { token: string; hash: string; expiresAt: Date } {
+  const token = generateSecureToken();
+  const hash = hashToken(token);
+  const expiresAt = new Date();
+  const hoursStr = (process.env.JWT_EXPIRES_IN || '8h').replace('h', '');
+  const hours = parseInt(hoursStr, 10) || 8;
+  expiresAt.setHours(expiresAt.getHours() + hours);
+
+  return { token, hash, expiresAt };
 }

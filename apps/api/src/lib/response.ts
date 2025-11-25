@@ -1,14 +1,20 @@
 import { Response } from 'express';
 import { ApiResponse, PaginationMeta } from '@steno/shared';
 
+interface ResponseMeta {
+  pagination?: PaginationMeta;
+  csrfToken?: string;
+  [key: string]: unknown;
+}
+
 /**
  * Send a successful JSON response
  */
 export function sendSuccess<T>(
   res: Response,
   data: T,
-  statusCode = 200,
-  meta?: { pagination?: PaginationMeta }
+  meta?: ResponseMeta,
+  statusCode = 200
 ): void {
   const response: ApiResponse<T> = { data };
   if (meta) {

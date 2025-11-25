@@ -2,20 +2,32 @@ import { Router, Request, Response, NextFunction } from 'express';
 import {
   registerSchema,
   verifyEmailSchema,
-  RegisterInput,
+  loginSchema,
   Role
 } from '@steno/shared';
 import { prisma } from '../lib/prisma.js';
-import { hashPassword } from '../lib/password.js';
+import { hashPassword, verifyPassword } from '../lib/password.js';
 import {
   generateEmailVerificationToken,
   hashToken,
   generateAccessToken,
-  generateRefreshToken
+  generateCsrfToken,
+  JwtPayload,
 } from '../lib/tokens.js';
-import { AppError, Errors } from '../lib/errors.js';
+import { Errors } from '../lib/errors.js';
 import { sendCreated, sendSuccess } from '../lib/response.js';
 import { sendVerificationEmail } from '../services/email/sesClient.js';
+import { setCsrfCookie } from '../middleware/csrf.js';
+import { authenticate } from '../middleware/authenticate.js';
+
+const COOKIE_NAME = 'steno_token';
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict' as const,
+  maxAge: 8 * 60 * 60 * 1000, // 8 hours
+  path: '/',
+};
 
 const router = Router();
 
@@ -247,6 +259,182 @@ router.post('/resend-verification', async (req: Request, res: Response, next: Ne
     }
 
     sendSuccess(res, { message: 'If an unverified account exists, a verification email has been sent' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/auth/login
+ * Login with email and password
+ *
+ * Story 1-2 Acceptance Criteria:
+ * AC1: Login with email/password validates credentials correctly
+ * AC2: JWT token generated with claims: sub (user_id), org_id, role, exp
+ * AC3: HTTP-only secure cookies used for token storage
+ * AC4: Session timeout configurable (default 8 hours)
+ * AC6: CSRF protection (token returned in response)
+ */
+router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Validate input with Zod schema
+    const validation = loginSchema.safeParse(req.body);
+    if (!validation.success) {
+      const fieldErrors: Record<string, string[]> = {};
+      validation.error.errors.forEach((err) => {
+        const field = err.path.join('.');
+        if (!fieldErrors[field]) fieldErrors[field] = [];
+        fieldErrors[field].push(err.message);
+      });
+      throw Errors.validation('Invalid login data', fieldErrors);
+    }
+
+    const { email, password } = validation.data;
+
+    // Query user by email (AC1)
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      include: { organization: true },
+    });
+
+    // Use same error for all auth failures to prevent enumeration
+    if (!user) {
+      throw Errors.unauthorized('Invalid email or password');
+    }
+
+    // Verify password hash using bcrypt (AC1)
+    const passwordValid = await verifyPassword(password, user.passwordHash);
+    if (!passwordValid) {
+      throw Errors.unauthorized('Invalid email or password');
+    }
+
+    // Check email_verified status (reject if not verified)
+    if (!user.emailVerified) {
+      throw Errors.forbidden('Please verify your email before logging in');
+    }
+
+    // Generate JWT token (AC2)
+    const jwtPayload: JwtPayload = {
+      sub: user.id,
+      org_id: user.organizationId,
+      role: user.role as Role,
+      email: user.email,
+    };
+    const accessToken = generateAccessToken(jwtPayload);
+    const tokenHash = hashToken(accessToken);
+
+    // Generate CSRF token (AC6)
+    const csrfToken = generateCsrfToken();
+
+    // Calculate expiry (AC4 - 8 hours default)
+    const expiresAt = new Date();
+    const hoursStr = (process.env.JWT_EXPIRES_IN || '8h').replace('h', '');
+    const hours = parseInt(hoursStr, 10) || 8;
+    expiresAt.setHours(expiresAt.getHours() + hours);
+
+    // Store session record with hashed token
+    await prisma.session.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        csrfToken,
+        expiresAt,
+        ipAddress: req.ip || null,
+        userAgent: req.get('user-agent') || null,
+      },
+    });
+
+    // Set HTTP-only, Secure, SameSite=Strict cookie with token (AC3)
+    res.cookie(COOKIE_NAME, accessToken, COOKIE_OPTIONS);
+
+    // Set CSRF token cookie (readable by JS) (AC6)
+    setCsrfCookie(csrfToken, res);
+
+    // Return user data (excluding sensitive fields)
+    sendSuccess(res, {
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        organizationId: user.organizationId,
+      },
+      organization: {
+        id: user.organization.id,
+        name: user.organization.name,
+      },
+    }, {
+      csrfToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/auth/logout
+ * Logout and invalidate session
+ *
+ * AC5: Logout clears session and invalidates tokens
+ */
+router.post('/logout', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Delete session record from database (AC5)
+    if (req.user?.sessionId) {
+      await prisma.session.delete({
+        where: { id: req.user.sessionId },
+      });
+    }
+
+    // Clear HTTP-only cookie (AC5)
+    res.clearCookie(COOKIE_NAME, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+    });
+
+    // Clear CSRF cookie
+    res.clearCookie('steno_csrf', {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+    });
+
+    sendSuccess(res, { message: 'Logged out successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/auth/me
+ * Get current authenticated user
+ */
+router.get('/me', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      include: { organization: true },
+    });
+
+    if (!user) {
+      throw Errors.notFound('User not found');
+    }
+
+    sendSuccess(res, {
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        organizationId: user.organizationId,
+        emailVerified: user.emailVerified,
+      },
+      organization: {
+        id: user.organization.id,
+        name: user.organization.name,
+      },
+    });
   } catch (error) {
     next(error);
   }
