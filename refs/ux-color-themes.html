@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steno Partner - Color Theme Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .theme-card { transition: all 0.3s ease; }
+        .theme-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.15); }
+        .color-swatch { transition: transform 0.2s; }
+        .color-swatch:hover { transform: scale(1.1); }
+        .selected-theme { ring: 4px; ring-color: #CE11A4; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-[#CE11A4] via-[#493087] to-[#2F317C] text-white py-8 px-6">
+        <div class="max-w-7xl mx-auto">
+            <h1 class="text-3xl font-bold mb-2">Steno Partner - Color Theme Explorer</h1>
+            <p class="text-white/80">Interactive visualization of color theme options based on Steno brand guidelines</p>
+        </div>
+    </header>
+
+    <!-- Theme Selection -->
+    <main class="max-w-7xl mx-auto px-6 py-8">
+        <!-- Introduction -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Brand Foundation</h2>
+            <div class="bg-white rounded-xl p-6 shadow-sm">
+                <p class="text-gray-600 mb-4">Colors derived from Steno.com's professional gradient palette, adapted for a two-sided platform serving both creditors and debtors.</p>
+                <div class="flex flex-wrap gap-4">
+                    <div class="text-center">
+                        <div class="w-16 h-16 rounded-lg bg-[#CE11A4] color-swatch cursor-pointer" title="#CE11A4"></div>
+                        <span class="text-xs text-gray-500 mt-1 block">Magenta</span>
+                        <code class="text-xs">#CE11A4</code>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-16 h-16 rounded-lg bg-[#B5006A] color-swatch cursor-pointer" title="#B5006A"></div>
+                        <span class="text-xs text-gray-500 mt-1 block">Deep Magenta</span>
+                        <code class="text-xs">#B5006A</code>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-16 h-16 rounded-lg bg-[#493087] color-swatch cursor-pointer" title="#493087"></div>
+                        <span class="text-xs text-gray-500 mt-1 block">Rich Purple</span>
+                        <code class="text-xs">#493087</code>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-16 h-16 rounded-lg bg-[#2F317C] color-swatch cursor-pointer" title="#2F317C"></div>
+                        <span class="text-xs text-gray-500 mt-1 block">Deep Navy</span>
+                        <code class="text-xs">#2F317C</code>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Theme Options -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Theme Options</h2>
+            <p class="text-gray-600 mb-6">Click any theme to see it applied to the UI components below.</p>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Theme 1: Professional Purple (Recommended) -->
+                <div class="theme-card bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-[#493087]" onclick="selectTheme('purple')">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-gray-800">Professional Purple</h3>
+                        <span class="text-xs bg-[#493087] text-white px-2 py-1 rounded">Recommended</span>
+                    </div>
+                    <p class="text-sm text-gray-500 mb-4">Primary purple with magenta accents. Balances professionalism with warmth.</p>
+                    <div class="flex gap-2">
+                        <div class="w-8 h-8 rounded bg-[#493087]" title="Primary"></div>
+                        <div class="w-8 h-8 rounded bg-[#CE11A4]" title="Accent"></div>
+                        <div class="w-8 h-8 rounded bg-[#F8F7FC]" title="Background"></div>
+                        <div class="w-8 h-8 rounded bg-[#1F2937]" title="Text"></div>
+                        <div class="w-8 h-8 rounded bg-[#10B981]" title="Success"></div>
+                    </div>
+                </div>
+
+                <!-- Theme 2: Calming Navy -->
+                <div class="theme-card bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-[#2F317C]" onclick="selectTheme('navy')">
+                    <h3 class="font-semibold text-gray-800 mb-2">Calming Navy</h3>
+                    <p class="text-sm text-gray-500 mb-4">Navy-forward for trust and stability. Ideal for debtor-facing screens.</p>
+                    <div class="flex gap-2">
+                        <div class="w-8 h-8 rounded bg-[#2F317C]" title="Primary"></div>
+                        <div class="w-8 h-8 rounded bg-[#493087]" title="Accent"></div>
+                        <div class="w-8 h-8 rounded bg-[#F5F5FA]" title="Background"></div>
+                        <div class="w-8 h-8 rounded bg-[#1E293B]" title="Text"></div>
+                        <div class="w-8 h-8 rounded bg-[#0EA5E9]" title="Info"></div>
+                    </div>
+                </div>
+
+                <!-- Theme 3: Warm Magenta -->
+                <div class="theme-card bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-[#CE11A4]" onclick="selectTheme('magenta')">
+                    <h3 class="font-semibold text-gray-800 mb-2">Warm Magenta</h3>
+                    <p class="text-sm text-gray-500 mb-4">Magenta-forward for energy and action. Good for CTAs and highlights.</p>
+                    <div class="flex gap-2">
+                        <div class="w-8 h-8 rounded bg-[#CE11A4]" title="Primary"></div>
+                        <div class="w-8 h-8 rounded bg-[#493087]" title="Secondary"></div>
+                        <div class="w-8 h-8 rounded bg-[#FDF8FC]" title="Background"></div>
+                        <div class="w-8 h-8 rounded bg-[#1F2937]" title="Text"></div>
+                        <div class="w-8 h-8 rounded bg-[#F59E0B]" title="Warning"></div>
+                    </div>
+                </div>
+
+                <!-- Theme 4: Light Mode (Cursor-like) -->
+                <div class="theme-card bg-white rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-gray-400" onclick="selectTheme('light')">
+                    <h3 class="font-semibold text-gray-800 mb-2">Clean Light</h3>
+                    <p class="text-sm text-gray-500 mb-4">Cursor-inspired minimal. White canvas with purple accents.</p>
+                    <div class="flex gap-2">
+                        <div class="w-8 h-8 rounded bg-white border" title="Background"></div>
+                        <div class="w-8 h-8 rounded bg-[#493087]" title="Primary"></div>
+                        <div class="w-8 h-8 rounded bg-[#F3F4F6]" title="Surface"></div>
+                        <div class="w-8 h-8 rounded bg-[#111827]" title="Text"></div>
+                        <div class="w-8 h-8 rounded bg-[#E5E7EB]" title="Border"></div>
+                    </div>
+                </div>
+
+                <!-- Theme 5: Dark Mode -->
+                <div class="theme-card bg-gray-800 rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-[#CE11A4]" onclick="selectTheme('dark')">
+                    <h3 class="font-semibold text-white mb-2">Professional Dark</h3>
+                    <p class="text-sm text-gray-400 mb-4">Dark mode with vibrant purple/magenta accents.</p>
+                    <div class="flex gap-2">
+                        <div class="w-8 h-8 rounded bg-[#0F0F12]" title="Background"></div>
+                        <div class="w-8 h-8 rounded bg-[#1C1C22]" title="Surface"></div>
+                        <div class="w-8 h-8 rounded bg-[#CE11A4]" title="Primary"></div>
+                        <div class="w-8 h-8 rounded bg-[#F9FAFB]" title="Text"></div>
+                        <div class="w-8 h-8 rounded bg-[#493087]" title="Accent"></div>
+                    </div>
+                </div>
+
+                <!-- Theme 6: Dual-Mode (Context Aware) -->
+                <div class="theme-card bg-gradient-to-br from-white to-gray-100 rounded-xl p-6 shadow-sm cursor-pointer border-2 border-transparent hover:border-[#493087]" onclick="selectTheme('dual')">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="font-semibold text-gray-800">Adaptive Dual</h3>
+                        <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Smart</span>
+                    </div>
+                    <p class="text-sm text-gray-500 mb-4">Purple for creditors, calming navy for debtors. Context-aware theming.</p>
+                    <div class="flex gap-2">
+                        <div class="w-8 h-8 rounded bg-[#493087]" title="Creditor Primary"></div>
+                        <div class="w-8 h-8 rounded bg-[#2F317C]" title="Debtor Primary"></div>
+                        <div class="w-8 h-8 rounded bg-[#CE11A4]" title="Shared Accent"></div>
+                        <div class="w-8 h-8 rounded bg-[#10B981]" title="Success"></div>
+                        <div class="w-8 h-8 rounded bg-[#EF4444]" title="Alert"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Preview -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Live Preview</h2>
+            <p class="text-gray-600 mb-6">See the selected theme applied to actual UI components.</p>
+
+            <div id="preview-container" class="rounded-xl overflow-hidden shadow-lg">
+                <!-- Preview will be injected here -->
+            </div>
+        </section>
+
+        <!-- Semantic Colors -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Semantic Color System</h2>
+            <div class="bg-white rounded-xl p-6 shadow-sm">
+                <p class="text-gray-600 mb-6">Consistent semantic meanings across all themes:</p>
+
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div>
+                        <h4 class="font-medium text-gray-700 mb-3">Status Colors</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#10B981]"></div>
+                                <span class="text-sm">Success / Resolved</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#F59E0B]"></div>
+                                <span class="text-sm">Warning / Pending</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#EF4444]"></div>
+                                <span class="text-sm">Error / Overdue</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#0EA5E9]"></div>
+                                <span class="text-sm">Info / New</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="font-medium text-gray-700 mb-3">Pipeline Stages</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#6B7280]"></div>
+                                <span class="text-sm">New</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#8B5CF6]"></div>
+                                <span class="text-sm">Invited</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#0EA5E9]"></div>
+                                <span class="text-sm">Engaged</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#F59E0B]"></div>
+                                <span class="text-sm">Negotiating</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#10B981]"></div>
+                                <span class="text-sm">Resolved</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="font-medium text-gray-700 mb-3">User Roles</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#493087]"></div>
+                                <span class="text-sm">Creditor/Attorney</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#2F317C]"></div>
+                                <span class="text-sm">Debtor</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#059669]"></div>
+                                <span class="text-sm">Public Defender</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#CE11A4]"></div>
+                                <span class="text-sm">AI Assistant</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="font-medium text-gray-700 mb-3">Actions</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#493087]"></div>
+                                <span class="text-sm">Primary Action</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#6B7280]"></div>
+                                <span class="text-sm">Secondary Action</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#CE11A4]"></div>
+                                <span class="text-sm">Highlight/CTA</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-6 h-6 rounded bg-[#EF4444]"></div>
+                                <span class="text-sm">Destructive</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tailwind Config -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Tailwind CSS Configuration</h2>
+            <div class="bg-gray-900 rounded-xl p-6 overflow-x-auto">
+                <pre class="text-sm text-gray-300"><code>// tailwind.config.js
+module.exports = {
+  theme: {
+    extend: {
+      colors: {
+        // Steno Brand
+        steno: {
+          magenta: '#CE11A4',
+          'deep-magenta': '#B5006A',
+          purple: '#493087',
+          navy: '#2F317C',
+        },
+        // Semantic
+        primary: {
+          DEFAULT: '#493087',
+          hover: '#3d2771',
+          light: '#F8F7FC',
+        },
+        accent: {
+          DEFAULT: '#CE11A4',
+          hover: '#B5006A',
+        },
+        // Surfaces
+        surface: {
+          DEFAULT: '#FFFFFF',
+          secondary: '#F8F7FC',
+          tertiary: '#F3F4F6',
+        },
+        // Status
+        success: '#10B981',
+        warning: '#F59E0B',
+        error: '#EF4444',
+        info: '#0EA5E9',
+        // Pipeline
+        pipeline: {
+          new: '#6B7280',
+          invited: '#8B5CF6',
+          engaged: '#0EA5E9',
+          negotiating: '#F59E0B',
+          resolved: '#10B981',
+        },
+        // Roles
+        role: {
+          creditor: '#493087',
+          debtor: '#2F317C',
+          defender: '#059669',
+          ai: '#CE11A4',
+        },
+      },
+    },
+  },
+}</code></pre>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-100 py-6 px-6 text-center text-gray-500 text-sm">
+        <p>Steno Partner UX Design - Color Theme Explorer</p>
+        <p class="mt-1">Generated by BMad Method - Create UX Design Workflow</p>
+    </footer>
+
+    <script>
+        const themes = {
+            purple: {
+                name: 'Professional Purple',
+                bg: '#F8F7FC',
+                surface: '#FFFFFF',
+                primary: '#493087',
+                primaryHover: '#3d2771',
+                accent: '#CE11A4',
+                text: '#1F2937',
+                textMuted: '#6B7280',
+                border: '#E5E7EB',
+                isDark: false
+            },
+            navy: {
+                name: 'Calming Navy',
+                bg: '#F5F5FA',
+                surface: '#FFFFFF',
+                primary: '#2F317C',
+                primaryHover: '#252863',
+                accent: '#493087',
+                text: '#1E293B',
+                textMuted: '#64748B',
+                border: '#E2E8F0',
+                isDark: false
+            },
+            magenta: {
+                name: 'Warm Magenta',
+                bg: '#FDF8FC',
+                surface: '#FFFFFF',
+                primary: '#CE11A4',
+                primaryHover: '#B5006A',
+                accent: '#493087',
+                text: '#1F2937',
+                textMuted: '#6B7280',
+                border: '#F3E8F0',
+                isDark: false
+            },
+            light: {
+                name: 'Clean Light',
+                bg: '#FFFFFF',
+                surface: '#F9FAFB',
+                primary: '#493087',
+                primaryHover: '#3d2771',
+                accent: '#CE11A4',
+                text: '#111827',
+                textMuted: '#6B7280',
+                border: '#E5E7EB',
+                isDark: false
+            },
+            dark: {
+                name: 'Professional Dark',
+                bg: '#0F0F12',
+                surface: '#1C1C22',
+                primary: '#CE11A4',
+                primaryHover: '#E91BB8',
+                accent: '#493087',
+                text: '#F9FAFB',
+                textMuted: '#9CA3AF',
+                border: '#374151',
+                isDark: true
+            },
+            dual: {
+                name: 'Adaptive Dual',
+                bg: '#F8F7FC',
+                surface: '#FFFFFF',
+                primary: '#493087',
+                primaryHover: '#3d2771',
+                accent: '#CE11A4',
+                text: '#1F2937',
+                textMuted: '#6B7280',
+                border: '#E5E7EB',
+                isDark: false,
+                note: 'Creditor view shown. Debtor view uses navy (#2F317C) as primary.'
+            }
+        };
+
+        function selectTheme(themeKey) {
+            const theme = themes[themeKey];
+            const container = document.getElementById('preview-container');
+
+            container.innerHTML = `
+                <div style="background: ${theme.bg}; padding: 2rem;">
+                    ${theme.note ? `<div style="background: ${theme.accent}20; color: ${theme.primary}; padding: 0.75rem 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem;">${theme.note}</div>` : ''}
+
+                    <!-- Header -->
+                    <div style="background: ${theme.surface}; border-radius: 0.75rem; padding: 1rem 1.5rem; margin-bottom: 1.5rem; border: 1px solid ${theme.border}; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div style="width: 2rem; height: 2rem; background: linear-gradient(135deg, #CE11A4, #493087); border-radius: 0.375rem;"></div>
+                            <span style="font-weight: 600; color: ${theme.text};">Steno Partner</span>
+                        </div>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <span style="color: ${theme.textMuted}; font-size: 0.875rem;">Dashboard</span>
+                            <span style="color: ${theme.textMuted}; font-size: 0.875rem;">Cases</span>
+                            <span style="color: ${theme.textMuted}; font-size: 0.875rem;">Templates</span>
+                            <div style="width: 2rem; height: 2rem; background: ${theme.primary}; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem;">JD</div>
+                        </div>
+                    </div>
+
+                    <!-- Main Content -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                        <!-- Pipeline Card -->
+                        <div style="background: ${theme.surface}; border-radius: 0.75rem; padding: 1.5rem; border: 1px solid ${theme.border};">
+                            <h3 style="color: ${theme.text}; font-weight: 600; margin-bottom: 1rem;">Case Pipeline</h3>
+                            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                                <div style="flex: 1; text-align: center; padding: 0.5rem; background: #6B728020; border-radius: 0.375rem;">
+                                    <div style="font-size: 1.25rem; font-weight: 600; color: #6B7280;">12</div>
+                                    <div style="font-size: 0.75rem; color: ${theme.textMuted};">New</div>
+                                </div>
+                                <div style="flex: 1; text-align: center; padding: 0.5rem; background: #8B5CF620; border-radius: 0.375rem;">
+                                    <div style="font-size: 1.25rem; font-weight: 600; color: #8B5CF6;">8</div>
+                                    <div style="font-size: 0.75rem; color: ${theme.textMuted};">Invited</div>
+                                </div>
+                                <div style="flex: 1; text-align: center; padding: 0.5rem; background: #0EA5E920; border-radius: 0.375rem;">
+                                    <div style="font-size: 1.25rem; font-weight: 600; color: #0EA5E9;">15</div>
+                                    <div style="font-size: 0.75rem; color: ${theme.textMuted};">Engaged</div>
+                                </div>
+                                <div style="flex: 1; text-align: center; padding: 0.5rem; background: #F59E0B20; border-radius: 0.375rem;">
+                                    <div style="font-size: 1.25rem; font-weight: 600; color: #F59E0B;">6</div>
+                                    <div style="font-size: 0.75rem; color: ${theme.textMuted};">Negotiating</div>
+                                </div>
+                                <div style="flex: 1; text-align: center; padding: 0.5rem; background: #10B98120; border-radius: 0.375rem;">
+                                    <div style="font-size: 1.25rem; font-weight: 600; color: #10B981;">24</div>
+                                    <div style="font-size: 0.75rem; color: ${theme.textMuted};">Resolved</div>
+                                </div>
+                            </div>
+                            <button style="width: 100%; background: ${theme.primary}; color: white; padding: 0.625rem 1rem; border-radius: 0.375rem; border: none; cursor: pointer; font-weight: 500;">
+                                + New Demand Letter
+                            </button>
+                        </div>
+
+                        <!-- Chat Preview -->
+                        <div style="background: ${theme.surface}; border-radius: 0.75rem; padding: 1.5rem; border: 1px solid ${theme.border};">
+                            <h3 style="color: ${theme.text}; font-weight: 600; margin-bottom: 1rem;">AI Communication</h3>
+                            <div style="background: ${theme.bg}; border-radius: 0.5rem; padding: 1rem; margin-bottom: 0.75rem;">
+                                <div style="display: flex; gap: 0.5rem; align-items: flex-start; margin-bottom: 0.75rem;">
+                                    <div style="width: 1.5rem; height: 1.5rem; background: ${theme.accent}; border-radius: 50%; flex-shrink: 0;"></div>
+                                    <div style="background: ${theme.surface}; padding: 0.75rem; border-radius: 0.5rem; font-size: 0.875rem; color: ${theme.text}; border: 1px solid ${theme.border};">
+                                        I've drafted a warm introduction for the payment plan discussion. Would you like to review it?
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem; align-items: flex-start; justify-content: flex-end;">
+                                    <div style="background: ${theme.primary}; padding: 0.75rem; border-radius: 0.5rem; font-size: 0.875rem; color: white;">
+                                        Yes, show me the draft
+                                    </div>
+                                    <div style="width: 1.5rem; height: 1.5rem; background: ${theme.primary}; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.625rem;">JD</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" placeholder="Type a message..." style="flex: 1; padding: 0.5rem 0.75rem; border: 1px solid ${theme.border}; border-radius: 0.375rem; background: ${theme.bg}; color: ${theme.text};">
+                                <button style="background: ${theme.primary}; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; border: none; cursor: pointer;">Send</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Case List -->
+                    <div style="background: ${theme.surface}; border-radius: 0.75rem; padding: 1.5rem; border: 1px solid ${theme.border}; margin-top: 1.5rem;">
+                        <h3 style="color: ${theme.text}; font-weight: 600; margin-bottom: 1rem;">Recent Cases</h3>
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: ${theme.bg}; border-radius: 0.375rem;">
+                                <div>
+                                    <div style="font-weight: 500; color: ${theme.text};">Case #2024-0892</div>
+                                    <div style="font-size: 0.75rem; color: ${theme.textMuted};">Amount: $4,250 • Last activity: 2 hours ago</div>
+                                </div>
+                                <span style="background: #0EA5E920; color: #0EA5E9; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500;">Engaged</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: ${theme.bg}; border-radius: 0.375rem;">
+                                <div>
+                                    <div style="font-weight: 500; color: ${theme.text};">Case #2024-0891</div>
+                                    <div style="font-size: 0.75rem; color: ${theme.textMuted};">Amount: $1,800 • Last activity: 5 hours ago</div>
+                                </div>
+                                <span style="background: #F59E0B20; color: #F59E0B; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500;">Negotiating</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: ${theme.bg}; border-radius: 0.375rem;">
+                                <div>
+                                    <div style="font-weight: 500; color: ${theme.text};">Case #2024-0890</div>
+                                    <div style="font-size: 0.75rem; color: ${theme.textMuted};">Amount: $3,100 • Payment plan agreed</div>
+                                </div>
+                                <span style="background: #10B98120; color: #10B981; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500;">Resolved</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Buttons Preview -->
+                    <div style="background: ${theme.surface}; border-radius: 0.75rem; padding: 1.5rem; border: 1px solid ${theme.border}; margin-top: 1.5rem;">
+                        <h3 style="color: ${theme.text}; font-weight: 600; margin-bottom: 1rem;">Button Styles</h3>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
+                            <button style="background: ${theme.primary}; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; border: none; cursor: pointer; font-weight: 500;">Primary</button>
+                            <button style="background: transparent; color: ${theme.primary}; padding: 0.5rem 1rem; border-radius: 0.375rem; border: 1px solid ${theme.primary}; cursor: pointer; font-weight: 500;">Secondary</button>
+                            <button style="background: ${theme.accent}; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; border: none; cursor: pointer; font-weight: 500;">Accent</button>
+                            <button style="background: #10B981; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; border: none; cursor: pointer; font-weight: 500;">Success</button>
+                            <button style="background: #EF4444; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; border: none; cursor: pointer; font-weight: 500;">Destructive</button>
+                            <button style="background: ${theme.bg}; color: ${theme.textMuted}; padding: 0.5rem 1rem; border-radius: 0.375rem; border: 1px solid ${theme.border}; cursor: pointer; font-weight: 500;">Ghost</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Initialize with recommended theme
+        selectTheme('purple');
+    </script>
+</body>
+</html>
