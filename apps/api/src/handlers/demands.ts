@@ -8,11 +8,17 @@ import { authenticate } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
 import { successResponse, errorResponse } from '../lib/response.js';
-import { generateLetterSchema, createCaseSchema, AuditAction } from '@steno/shared';
+import { generateLetterSchema, createCaseSchema, createInvitationSchema, AuditAction } from '@steno/shared';
 import { generateLetter, generateLetterStream, LetterGenerationError } from '../services/ai/letterGenerator.js';
 import { refineLetter, RefinementError } from '../services/ai/letterRefiner.js';
 import { COMMON_REFINEMENT_SUGGESTIONS } from '../services/ai/prompts/letterRefinement.js';
 import { generateDiff } from '../services/diff/textDiff.js';
+import {
+  createInvitationLink,
+  getInvitationStatus,
+  revokeInvitation,
+  InvitationError,
+} from '../services/invitation/invitationService.js';
 import { logger } from '../middleware/logger.js';
 import { prisma } from '../lib/prisma.js';
 import { logAuditEvent } from '../services/audit/auditLogger.js';
@@ -884,6 +890,141 @@ router.get(
   authorize('demands:read'),
   async (_req: Request, res: Response): Promise<void> => {
     res.json(successResponse(COMMON_REFINEMENT_SUGGESTIONS));
+  }
+);
+
+// ============================================
+// INVITATION ENDPOINTS
+// ============================================
+
+/**
+ * POST /api/v1/demands/:demandId/invitation
+ * Generate an invitation link for a demand letter
+ * Requires ATTORNEY or FIRM_ADMIN role
+ */
+router.post(
+  '/:demandId/invitation',
+  authorize('demands:update'),
+  validate({ body: createInvitationSchema }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const { expirationDays, usageLimit } = req.body;
+      const organizationId = req.user!.organizationId;
+
+      const result = await createInvitationLink(demandId, organizationId, {
+        expirationDays,
+        usageLimit,
+      });
+
+      logAuditEvent(req, {
+        action: AuditAction.INVITATION_CREATED,
+        resourceType: 'Invitation',
+        resourceId: demandId,
+        metadata: {
+          expiresAt: result.expiresAt,
+          usageLimit: result.usageLimit,
+        },
+      });
+
+      logger.info('Invitation created', {
+        demandLetterId: demandId,
+        expiresAt: result.expiresAt,
+        usageLimit: result.usageLimit,
+      });
+
+      res.status(201).json(successResponse(result));
+    } catch (error) {
+      if (error instanceof InvitationError) {
+        const statusMap: Record<string, number> = {
+          NOT_FOUND: 404,
+          INVITATION_EXISTS: 409,
+        };
+        const status = statusMap[error.code] || 400;
+        res.status(status).json(errorResponse(error.message, error.code));
+        return;
+      }
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/demands/:demandId/invitation
+ * Get invitation status for a demand letter
+ */
+router.get(
+  '/:demandId/invitation',
+  authorize('demands:read'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const organizationId = req.user!.organizationId;
+
+      const status = await getInvitationStatus(demandId, organizationId);
+      res.json(successResponse(status));
+    } catch (error) {
+      if (error instanceof InvitationError) {
+        if (error.code === 'NOT_FOUND') {
+          res.status(404).json(errorResponse(error.message, error.code));
+          return;
+        }
+        res.status(400).json(errorResponse(error.message, error.code));
+        return;
+      }
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /api/v1/demands/:demandId/invitation
+ * Revoke an invitation for a demand letter
+ * Requires ATTORNEY or FIRM_ADMIN role
+ */
+router.delete(
+  '/:demandId/invitation',
+  authorize('demands:update'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const organizationId = req.user!.organizationId;
+
+      const result = await revokeInvitation(demandId, organizationId);
+
+      logAuditEvent(req, {
+        action: AuditAction.INVITATION_REVOKED,
+        resourceType: 'Invitation',
+        resourceId: demandId,
+        metadata: {
+          revokedAt: result.revokedAt,
+        },
+      });
+
+      logger.info('Invitation revoked', {
+        demandLetterId: demandId,
+        revokedAt: result.revokedAt,
+      });
+
+      res.json(
+        successResponse({
+          message: 'Invitation revoked successfully',
+          revokedAt: result.revokedAt,
+        })
+      );
+    } catch (error) {
+      if (error instanceof InvitationError) {
+        const statusMap: Record<string, number> = {
+          NOT_FOUND: 404,
+          NO_INVITATION: 404,
+          ALREADY_REVOKED: 400,
+        };
+        const status = statusMap[error.code] || 400;
+        res.status(status).json(errorResponse(error.message, error.code));
+        return;
+      }
+      next(error);
+    }
   }
 );
 

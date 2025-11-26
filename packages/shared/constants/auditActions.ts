@@ -56,6 +56,13 @@ export enum AuditAction {
   TEMPLATE_UPDATED = 'TEMPLATE_UPDATED',
   TEMPLATE_DELETED = 'TEMPLATE_DELETED',
 
+  // Invitation events
+  INVITATION_CREATED = 'INVITATION_CREATED',
+  INVITATION_VALIDATED = 'INVITATION_VALIDATED',
+  INVITATION_VALIDATION_FAILED = 'INVITATION_VALIDATION_FAILED',
+  INVITATION_REDEEMED = 'INVITATION_REDEEMED',
+  INVITATION_REVOKED = 'INVITATION_REVOKED',
+
   // Audit log access
   AUDIT_LOGS_ACCESSED = 'AUDIT_LOGS_ACCESSED',
 }
@@ -68,6 +75,7 @@ export type AuditResourceType =
   | 'Organization'
   | 'Case'
   | 'DemandLetter'
+  | 'Invitation'
   | 'Message'
   | 'PaymentPlan'
   | 'Payment'
