@@ -1,0 +1,374 @@
+# Case Management Endpoints
+paths:
+  /cases:
+    get:
+      tags:
+        - Cases
+      summary: List cases
+      description: Get cases accessible to the authenticated user
+      operationId: listCases
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_negotiation, plan_active, resolved, disputed]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, updatedAt, originalAmount, currentBalance]
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+      responses:
+        '200':
+          description: Cases retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Case'
+                  meta:
+                    $ref: '#/components/schemas/Pagination'
+
+  /cases/{caseId}:
+    get:
+      tags:
+        - Cases
+      summary: Get case details
+      description: Get detailed information about a specific case
+      operationId: getCaseDetails
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Case details retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/Case'
+                      - type: object
+                        properties:
+                          debtor:
+                            $ref: '#/components/schemas/User'
+                          creditor:
+                            $ref: '#/components/schemas/User'
+                          activePlan:
+                            $ref: '#/components/schemas/PaymentPlan'
+                          timeline:
+                            type: array
+                            items:
+                              type: object
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /cases/{caseId}/timeline:
+    get:
+      tags:
+        - Cases
+      summary: Get case timeline
+      description: Get the complete timeline of events for a case
+      operationId: getCaseTimeline
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Timeline retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                          enum: [case_opened, message_sent, plan_proposed, plan_accepted, payment_made, status_changed]
+                        description:
+                          type: string
+                        actor:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            name:
+                              type: string
+                            role:
+                              type: string
+                        timestamp:
+                          type: string
+                          format: date-time
+                        metadata:
+                          type: object
+
+  /cases/{caseId}/documents:
+    get:
+      tags:
+        - Cases
+      summary: List case documents
+      description: Get all documents associated with a case
+      operationId: listCaseDocuments
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Documents retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        name:
+                          type: string
+                        type:
+                          type: string
+                          enum: [demand_letter, payment_agreement, validation_request, proof_of_payment, other]
+                        size:
+                          type: integer
+                        uploadedBy:
+                          type: string
+                        uploadedAt:
+                          type: string
+                          format: date-time
+
+  /cases/{caseId}/plans:
+    get:
+      tags:
+        - Cases
+      summary: List payment plans
+      description: Get all payment plans for a case
+      operationId: listCasePlans
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Plans retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PaymentPlan'
+
+    post:
+      tags:
+        - Cases
+      summary: Create payment plan
+      description: Propose a new payment plan for a case
+      operationId: createPaymentPlan
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - monthlyAmount
+                - duration
+              properties:
+                monthlyAmount:
+                  type: number
+                  format: double
+                  minimum: 0
+                duration:
+                  type: integer
+                  minimum: 1
+                  maximum: 120
+                  description: Duration in months
+                startDate:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: Plan created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PaymentPlan'
+
+  /plans/{planId}:
+    get:
+      tags:
+        - Plans
+      summary: Get plan details
+      description: Get detailed information about a payment plan
+      operationId: getPlanDetails
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Plan details retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/PaymentPlan'
+                      - type: object
+                        properties:
+                          payments:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                amount:
+                                  type: number
+                                dueDate:
+                                  type: string
+                                  format: date
+                                paidAt:
+                                  type: string
+                                  format: date-time
+                                  nullable: true
+                                status:
+                                  type: string
+                                  enum: [pending, paid, late, missed]
+
+  /plans/{planId}/accept:
+    post:
+      tags:
+        - Plans
+      summary: Accept payment plan
+      description: Accept a proposed payment plan (debtor only)
+      operationId: acceptPaymentPlan
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Plan accepted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PaymentPlan'
+        '400':
+          description: Plan cannot be accepted
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /plans/{planId}/payments:
+    post:
+      tags:
+        - Plans
+      summary: Record payment
+      description: Record a payment against the plan
+      operationId: recordPayment
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+                - paidAt
+              properties:
+                amount:
+                  type: number
+                  format: double
+                paidAt:
+                  type: string
+                  format: date-time
+                paymentMethod:
+                  type: string
+                  enum: [bank_transfer, credit_card, check, cash, other]
+                reference:
+                  type: string
+                  description: Payment reference number
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: Payment recorded successfully

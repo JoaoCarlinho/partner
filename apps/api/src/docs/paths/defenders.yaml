@@ -1,0 +1,548 @@
+# Public Defender Endpoints
+paths:
+  /defender/dashboard:
+    get:
+      tags:
+        - Public Defenders
+      summary: Get defender dashboard
+      description: Get summary and statistics for the public defender's caseload
+      operationId: getDefenderDashboard
+      responses:
+        '200':
+          description: Dashboard data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      summary:
+                        type: object
+                        properties:
+                          activeCases:
+                            type: integer
+                            example: 12
+                          needsAttention:
+                            type: integer
+                            example: 4
+                          completedCases:
+                            type: integer
+                            example: 25
+                          pendingConsent:
+                            type: integer
+                            example: 2
+                      recentActivity:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                            description:
+                              type: string
+                            timestamp:
+                              type: string
+                              format: date-time
+                      upcomingDeadlines:
+                        type: array
+                        items:
+                          type: object
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /defender/assignments:
+    get:
+      tags:
+        - Public Defenders
+      summary: List defender assignments
+      description: Get all case assignments for the authenticated defender
+      operationId: listDefenderAssignments
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending_consent, active, completed, transferred]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Assignments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DefenderAssignment'
+                  meta:
+                    $ref: '#/components/schemas/Pagination'
+
+  /defender/assignments/{assignmentId}:
+    get:
+      tags:
+        - Public Defenders
+      summary: Get assignment details
+      description: Get detailed information about a specific assignment
+      operationId: getDefenderAssignment
+      parameters:
+        - name: assignmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Assignment details retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/DefenderAssignment'
+                      - type: object
+                        properties:
+                          debtor:
+                            $ref: '#/components/schemas/User'
+                          case:
+                            $ref: '#/components/schemas/Case'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /defender/assignments/{assignmentId}/messages:
+    get:
+      tags:
+        - Public Defenders
+      summary: Get messages for assignment
+      description: Get encrypted messages between defender and debtor
+      operationId: getDefenderMessages
+      parameters:
+        - name: assignmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  meta:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Public Defenders
+      summary: Send message to debtor
+      description: Send an encrypted message to the assigned debtor
+      operationId: sendDefenderMessage
+      parameters:
+        - name: assignmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  maxLength: 5000
+                contentType:
+                  type: string
+                  enum: [TEXT, FILE, SYSTEM]
+                  default: TEXT
+      responses:
+        '201':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Message'
+
+  /defender/assignments/{assignmentId}/notes:
+    get:
+      tags:
+        - Public Defenders
+      summary: List case notes
+      description: Get all notes for an assignment
+      operationId: listDefenderNotes
+      parameters:
+        - name: assignmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [INITIAL_ASSESSMENT, FINANCIAL_GUIDANCE, COMMUNICATION_COACHING, PLAN_RECOMMENDATIONS, FOLLOW_UP_REQUIRED, CASE_RESOLUTION, GENERAL]
+        - name: visibleToDebtor
+          in: query
+          schema:
+            type: boolean
+        - name: pinned
+          in: query
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Notes retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DefenderNote'
+                  meta:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Public Defenders
+      summary: Create case note
+      description: Create a new note for an assignment
+      operationId: createDefenderNote
+      parameters:
+        - name: assignmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - category
+                - title
+                - content
+              properties:
+                category:
+                  type: string
+                  enum: [INITIAL_ASSESSMENT, FINANCIAL_GUIDANCE, COMMUNICATION_COACHING, PLAN_RECOMMENDATIONS, FOLLOW_UP_REQUIRED, CASE_RESOLUTION, GENERAL]
+                title:
+                  type: string
+                  maxLength: 255
+                content:
+                  type: string
+                visibleToDebtor:
+                  type: boolean
+                  default: false
+                pinned:
+                  type: boolean
+                  default: false
+      responses:
+        '201':
+          description: Note created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/DefenderNote'
+
+  /defender/notes/{noteId}:
+    get:
+      tags:
+        - Public Defenders
+      summary: Get note details
+      description: Get a specific note with full content
+      operationId: getDefenderNote
+      parameters:
+        - name: noteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Note retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/DefenderNote'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    patch:
+      tags:
+        - Public Defenders
+      summary: Update note
+      description: Update an existing case note
+      operationId: updateDefenderNote
+      parameters:
+        - name: noteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+                category:
+                  type: string
+                  enum: [INITIAL_ASSESSMENT, FINANCIAL_GUIDANCE, COMMUNICATION_COACHING, PLAN_RECOMMENDATIONS, FOLLOW_UP_REQUIRED, CASE_RESOLUTION, GENERAL]
+                visibleToDebtor:
+                  type: boolean
+                pinned:
+                  type: boolean
+                editReason:
+                  type: string
+                  description: Reason for the edit (stored in history)
+      responses:
+        '200':
+          description: Note updated successfully
+
+    delete:
+      tags:
+        - Public Defenders
+      summary: Delete note
+      description: Soft delete a case note
+      operationId: deleteDefenderNote
+      parameters:
+        - name: noteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Note deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      deleted:
+                        type: boolean
+                        example: true
+
+  /defender/notes/{noteId}/history:
+    get:
+      tags:
+        - Public Defenders
+      summary: Get note history
+      description: Get edit history for a note
+      operationId: getDefenderNoteHistory
+      parameters:
+        - name: noteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: History retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        previousTitle:
+                          type: string
+                        previousContent:
+                          type: string
+                        previousCategory:
+                          type: string
+                        editedBy:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            name:
+                              type: string
+                        editReason:
+                          type: string
+                          nullable: true
+                        createdAt:
+                          type: string
+                          format: date-time
+
+  /defender/note-templates:
+    get:
+      tags:
+        - Public Defenders
+      summary: List note templates
+      description: Get system and custom note templates
+      operationId: listNoteTemplates
+      responses:
+        '200':
+          description: Templates retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        name:
+                          type: string
+                        category:
+                          type: string
+                        content:
+                          type: string
+                        isSystem:
+                          type: boolean
+
+    post:
+      tags:
+        - Public Defenders
+      summary: Create custom template
+      description: Save a custom note template
+      operationId: createNoteTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - category
+                - content
+              properties:
+                name:
+                  type: string
+                category:
+                  type: string
+                content:
+                  type: string
+      responses:
+        '201':
+          description: Template created successfully
+
+  /defender/onboarding:
+    get:
+      tags:
+        - Public Defenders
+      summary: Get onboarding status
+      description: Get the current onboarding status and progress
+      operationId: getOnboardingStatus
+      responses:
+        '200':
+          description: Onboarding status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: [INVITED, REGISTERED, VERIFIED, TRAINING, ACTIVE]
+                      completedSteps:
+                        type: array
+                        items:
+                          type: string
+                      currentStep:
+                        type: string
+                      progress:
+                        type: number
+                        format: float
+                        minimum: 0
+                        maximum: 100

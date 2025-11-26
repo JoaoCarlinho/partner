@@ -1,0 +1,459 @@
+# Debtor Platform Endpoints
+paths:
+  /debtors/onboard:
+    post:
+      tags:
+        - Debtors
+      summary: Start debtor onboarding
+      description: Redeem invitation and start debtor onboarding flow
+      operationId: startDebtorOnboarding
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - invitationToken
+              properties:
+                invitationToken:
+                  type: string
+                  description: Secure invitation token from creditor letter
+      responses:
+        '200':
+          description: Onboarding started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      sessionId:
+                        type: string
+                      debtInfo:
+                        type: object
+                        properties:
+                          creditorName:
+                            type: string
+                          originalAmount:
+                            type: number
+                          currentBalance:
+                            type: number
+                          accountReference:
+                            type: string
+                      nextStep:
+                        type: string
+        '400':
+          description: Invalid or expired invitation token
+
+  /debtors/assessment:
+    get:
+      tags:
+        - Debtors
+      summary: Get financial assessment
+      description: Get the debtor's financial assessment
+      operationId: getFinancialAssessment
+      responses:
+        '200':
+          description: Assessment retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      monthlyIncome:
+                        type: number
+                      monthlyExpenses:
+                        type: number
+                      disposableIncome:
+                        type: number
+                      employmentStatus:
+                        type: string
+                      dependents:
+                        type: integer
+                      affordablePayment:
+                        type: number
+                      riskScore:
+                        type: number
+                      completedAt:
+                        type: string
+                        format: date-time
+
+    post:
+      tags:
+        - Debtors
+      summary: Submit financial assessment
+      description: Submit or update the financial assessment
+      operationId: submitFinancialAssessment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - monthlyIncome
+                - employmentStatus
+              properties:
+                monthlyIncome:
+                  type: number
+                  minimum: 0
+                incomeSource:
+                  type: string
+                  enum: [employment, self_employed, benefits, retirement, other]
+                employmentStatus:
+                  type: string
+                  enum: [full_time, part_time, self_employed, unemployed, retired, disabled]
+                monthlyExpenses:
+                  type: object
+                  properties:
+                    housing:
+                      type: number
+                    utilities:
+                      type: number
+                    food:
+                      type: number
+                    transportation:
+                      type: number
+                    healthcare:
+                      type: number
+                    insurance:
+                      type: number
+                    otherDebts:
+                      type: number
+                    other:
+                      type: number
+                dependents:
+                  type: integer
+                  minimum: 0
+                assets:
+                  type: object
+                  properties:
+                    savings:
+                      type: number
+                    checkingBalance:
+                      type: number
+                    property:
+                      type: boolean
+                    vehicle:
+                      type: boolean
+      responses:
+        '200':
+          description: Assessment submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      disposableIncome:
+                        type: number
+                      affordablePayment:
+                        type: number
+                      recommendations:
+                        type: array
+                        items:
+                          type: object
+
+  /debtors/comfort-assessment:
+    get:
+      tags:
+        - Debtors
+      summary: Get comfort assessment
+      description: Get the debtor's comfort and intention assessment
+      operationId: getComfortAssessment
+      responses:
+        '200':
+          description: Assessment retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      comfortLevel:
+                        type: integer
+                        minimum: 1
+                        maximum: 10
+                      intentionToPay:
+                        type: string
+                        enum: [full, partial, negotiate, unable, dispute]
+                      concerns:
+                        type: array
+                        items:
+                          type: string
+                      preferredCommunication:
+                        type: string
+                      completedAt:
+                        type: string
+                        format: date-time
+
+    post:
+      tags:
+        - Debtors
+      summary: Submit comfort assessment
+      description: Submit comfort and intention assessment
+      operationId: submitComfortAssessment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - comfortLevel
+                - intentionToPay
+              properties:
+                comfortLevel:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+                  description: How comfortable debtor feels (1=very stressed, 10=very comfortable)
+                intentionToPay:
+                  type: string
+                  enum: [full, partial, negotiate, unable, dispute]
+                concerns:
+                  type: array
+                  items:
+                    type: string
+                    enum: [affordability, validity, harassment, legal_action, credit_impact, other]
+                concernDetails:
+                  type: string
+                preferredCommunication:
+                  type: string
+                  enum: [email, phone, platform, mail]
+                availableTimeSlots:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Assessment submitted
+
+  /debtors/dashboard:
+    get:
+      tags:
+        - Debtors
+      summary: Get debtor dashboard
+      description: Get the debtor's main dashboard view
+      operationId: getDebtorDashboard
+      responses:
+        '200':
+          description: Dashboard retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      cases:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Case'
+                      activePlans:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PaymentPlan'
+                      upcomingPayments:
+                        type: array
+                        items:
+                          type: object
+                      unreadMessages:
+                        type: integer
+                      assignedDefender:
+                        type: object
+                        nullable: true
+                      notifications:
+                        type: array
+                        items:
+                          type: object
+
+  /debtors/rights:
+    get:
+      tags:
+        - Debtors
+      summary: Get FDCPA rights info
+      description: Get information about debtor rights under FDCPA
+      operationId: getFdcpaRights
+      responses:
+        '200':
+          description: Rights information retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      summary:
+                        type: string
+                      rights:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            title:
+                              type: string
+                            description:
+                              type: string
+                            examples:
+                              type: array
+                              items:
+                                type: string
+                      violations:
+                        type: array
+                        items:
+                          type: object
+                      resources:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            title:
+                              type: string
+                            url:
+                              type: string
+
+  /debtors/request-defender:
+    post:
+      tags:
+        - Debtors
+      summary: Request public defender
+      description: Request assignment of a public defender
+      operationId: requestPublicDefender
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                caseId:
+                  type: string
+                  format: uuid
+                reason:
+                  type: string
+                urgency:
+                  type: string
+                  enum: [low, medium, high]
+      responses:
+        '201':
+          description: Defender request submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      requestId:
+                        type: string
+                      status:
+                        type: string
+                      estimatedAssignment:
+                        type: string
+
+  /debtors/defender-notes:
+    get:
+      tags:
+        - Debtors
+      summary: Get shared defender notes
+      description: Get notes shared by the assigned public defender
+      operationId: getSharedDefenderNotes
+      responses:
+        '200':
+          description: Notes retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        title:
+                          type: string
+                        content:
+                          type: string
+                        category:
+                          type: string
+                        sharedAt:
+                          type: string
+                          format: date-time
+                        defender:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            organizationName:
+                              type: string
+
+  /debtors/ai-recommendations:
+    get:
+      tags:
+        - Debtors
+      summary: Get AI recommendations
+      description: Get AI-generated recommendations for the debtor's situation
+      operationId: getAiRecommendations
+      parameters:
+        - name: caseId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Recommendations retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      planRecommendations:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                            monthlyAmount:
+                              type: number
+                            duration:
+                              type: integer
+                            totalCost:
+                              type: number
+                            confidence:
+                              type: number
+                            reasoning:
+                              type: string
+                      communicationTips:
+                        type: array
+                        items:
+                          type: string
+                      resourceLinks:
+                        type: array
+                        items:
+                          type: object

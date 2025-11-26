@@ -1,0 +1,517 @@
+# Admin Endpoints
+paths:
+  /admin/dashboard:
+    get:
+      tags:
+        - Admin
+      summary: Get admin dashboard
+      description: Get platform-wide admin dashboard
+      operationId: getAdminDashboard
+      responses:
+        '200':
+          description: Dashboard retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      userStats:
+                        type: object
+                        properties:
+                          totalUsers:
+                            type: integer
+                          activeUsers:
+                            type: integer
+                          newUsersToday:
+                            type: integer
+                          usersByRole:
+                            type: object
+                      caseStats:
+                        type: object
+                        properties:
+                          totalCases:
+                            type: integer
+                          activeCases:
+                            type: integer
+                          resolvedCases:
+                            type: integer
+                          resolutionRate:
+                            type: number
+                      platformMetrics:
+                        type: object
+                        properties:
+                          totalDebtManaged:
+                            type: number
+                          totalCollected:
+                            type: number
+                          averageResolutionTime:
+                            type: number
+                      systemHealth:
+                        type: object
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /admin/audit-logs:
+    get:
+      tags:
+        - Admin
+      summary: Get audit logs
+      description: Get platform audit logs
+      operationId: getAuditLogs
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: resource
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Audit logs retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        userId:
+                          type: string
+                        action:
+                          type: string
+                        resource:
+                          type: string
+                        resourceId:
+                          type: string
+                        details:
+                          type: object
+                        ipAddress:
+                          type: string
+                        userAgent:
+                          type: string
+                        timestamp:
+                          type: string
+                          format: date-time
+                  meta:
+                    $ref: '#/components/schemas/Pagination'
+
+  /admin/invitations:
+    get:
+      tags:
+        - Admin
+      summary: List defender invitations
+      description: List all pending defender invitations
+      operationId: listDefenderInvitations
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, accepted, expired, revoked]
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Invitations retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        email:
+                          type: string
+                        organizationId:
+                          type: string
+                        status:
+                          type: string
+                        invitedBy:
+                          type: string
+                        createdAt:
+                          type: string
+                          format: date-time
+                        expiresAt:
+                          type: string
+                          format: date-time
+
+    post:
+      tags:
+        - Admin
+      summary: Create defender invitation
+      description: Invite a public defender to the platform
+      operationId: createDefenderInvitation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - organizationId
+              properties:
+                email:
+                  type: string
+                  format: email
+                organizationId:
+                  type: string
+                  format: uuid
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                message:
+                  type: string
+      responses:
+        '201':
+          description: Invitation sent
+
+  /admin/defender-verifications:
+    get:
+      tags:
+        - Admin
+      summary: List pending verifications
+      description: List defenders awaiting credential verification
+      operationId: listPendingVerifications
+      responses:
+        '200':
+          description: Verifications retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        defenderId:
+                          type: string
+                        defenderName:
+                          type: string
+                        organization:
+                          type: string
+                        barNumber:
+                          type: string
+                        documents:
+                          type: array
+                          items:
+                            type: object
+                        submittedAt:
+                          type: string
+                          format: date-time
+
+  /admin/defender-verifications/{verificationId}/approve:
+    post:
+      tags:
+        - Admin
+      summary: Approve verification
+      description: Approve a defender's credential verification
+      operationId: approveVerification
+      parameters:
+        - name: verificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Verification approved
+
+  /admin/defender-verifications/{verificationId}/reject:
+    post:
+      tags:
+        - Admin
+      summary: Reject verification
+      description: Reject a defender's credential verification
+      operationId: rejectVerification
+      parameters:
+        - name: verificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Verification rejected
+
+  /admin/system/health:
+    get:
+      tags:
+        - Admin
+      summary: Get system health
+      description: Get system health status
+      operationId: getSystemHealth
+      responses:
+        '200':
+          description: Health status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  services:
+                    type: object
+                    properties:
+                      database:
+                        type: object
+                      cache:
+                        type: object
+                      queue:
+                        type: object
+                      storage:
+                        type: object
+                      ai:
+                        type: object
+                  uptime:
+                    type: number
+                  version:
+                    type: string
+
+  /admin/system/settings:
+    get:
+      tags:
+        - Admin
+      summary: Get system settings
+      description: Get platform configuration settings
+      operationId: getSystemSettings
+      responses:
+        '200':
+          description: Settings retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+
+    patch:
+      tags:
+        - Admin
+      summary: Update system settings
+      description: Update platform configuration
+      operationId: updateSystemSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Settings updated
+
+  /analytics/platform:
+    get:
+      tags:
+        - Analytics
+      summary: Get platform analytics
+      description: Get comprehensive platform analytics
+      operationId: getPlatformAnalytics
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: metrics
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [users, cases, resolutions, payments, communications, compliance]
+        - name: groupBy
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+      responses:
+        '200':
+          description: Analytics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      period:
+                        type: object
+                        properties:
+                          start:
+                            type: string
+                          end:
+                            type: string
+                      metrics:
+                        type: object
+                      trends:
+                        type: array
+                        items:
+                          type: object
+                      comparisons:
+                        type: object
+
+  /analytics/reports:
+    get:
+      tags:
+        - Analytics
+      summary: List reports
+      description: List available analytics reports
+      operationId: listReports
+      responses:
+        '200':
+          description: Reports listed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        type:
+                          type: string
+                        generatedAt:
+                          type: string
+                          format: date-time
+                        downloadUrl:
+                          type: string
+
+    post:
+      tags:
+        - Analytics
+      summary: Generate report
+      description: Generate a new analytics report
+      operationId: generateReport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - startDate
+                - endDate
+              properties:
+                type:
+                  type: string
+                  enum: [collection_summary, compliance_audit, defender_performance, debtor_outcomes]
+                startDate:
+                  type: string
+                  format: date
+                endDate:
+                  type: string
+                  format: date
+                filters:
+                  type: object
+                format:
+                  type: string
+                  enum: [pdf, csv, xlsx]
+      responses:
+        '202':
+          description: Report generation started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      reportId:
+                        type: string
+                      status:
+                        type: string
+                      estimatedCompletion:
+                        type: string
+                        format: date-time

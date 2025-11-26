@@ -1,0 +1,362 @@
+# Communication Endpoints
+paths:
+  /messages:
+    get:
+      tags:
+        - Communications
+      summary: List messages
+      description: Get messages for the authenticated user
+      operationId: listMessages
+      parameters:
+        - name: caseId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by case
+        - name: channel
+          in: query
+          schema:
+            type: string
+            enum: [creditor_debtor, defender_debtor, system]
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  meta:
+                    $ref: '#/components/schemas/Pagination'
+
+  /cases/{caseId}/messages:
+    get:
+      tags:
+        - Communications
+      summary: Get case messages
+      description: Get all messages for a specific case
+      operationId: getCaseMessages
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+
+    post:
+      tags:
+        - Communications
+      summary: Send message
+      description: Send a message in a case conversation
+      operationId: sendCaseMessage
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  maxLength: 5000
+                attachments:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  maxItems: 5
+            example:
+              content: "Thank you for your message. I'd like to discuss payment options."
+      responses:
+        '201':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/Message'
+                      - type: object
+                        properties:
+                          toneAnalysis:
+                            type: object
+                            properties:
+                              score:
+                                type: number
+                                minimum: 0
+                                maximum: 100
+                              feedback:
+                                type: array
+                                items:
+                                  type: string
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /messages/{messageId}/read:
+    patch:
+      tags:
+        - Communications
+      summary: Mark message as read
+      description: Mark a message as read
+      operationId: markMessageRead
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Message marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      readAt:
+                        type: string
+                        format: date-time
+
+  /messages/tone-analysis:
+    post:
+      tags:
+        - Communications
+      summary: Analyze message tone
+      description: Analyze the tone of a draft message before sending
+      operationId: analyzeMessageTone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                context:
+                  type: string
+                  enum: [creditor_to_debtor, debtor_to_creditor, defender_to_debtor]
+      responses:
+        '200':
+          description: Tone analysis completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      score:
+                        type: number
+                        description: Overall tone score (0-100)
+                      sentiment:
+                        type: string
+                        enum: [positive, neutral, negative]
+                      professionalism:
+                        type: number
+                      empathy:
+                        type: number
+                      clarity:
+                        type: number
+                      issues:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                            description:
+                              type: string
+                            suggestion:
+                              type: string
+                      suggestions:
+                        type: array
+                        items:
+                          type: string
+
+  /messages/rewrite:
+    post:
+      tags:
+        - Communications
+      summary: AI rewrite message
+      description: Get AI-suggested rewrites for a message
+      operationId: rewriteMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+                - style
+              properties:
+                content:
+                  type: string
+                style:
+                  type: string
+                  enum: [more_professional, more_empathetic, more_concise, more_detailed]
+                context:
+                  type: string
+      responses:
+        '200':
+          description: Rewrite suggestions generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      original:
+                        type: string
+                      rewritten:
+                        type: string
+                      changes:
+                        type: array
+                        items:
+                          type: string
+                      toneImprovement:
+                        type: number
+                        description: Estimated tone score improvement
+
+  /attachments:
+    post:
+      tags:
+        - Communications
+      summary: Upload attachment
+      description: Upload a file attachment for messaging
+      operationId: uploadAttachment
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to upload (max 10MB)
+      responses:
+        '201':
+          description: Attachment uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      fileName:
+                        type: string
+                      fileType:
+                        type: string
+                      fileSize:
+                        type: integer
+                      uploadedAt:
+                        type: string
+                        format: date-time
+        '400':
+          description: Invalid file type or size
+
+  /attachments/{attachmentId}:
+    get:
+      tags:
+        - Communications
+      summary: Get attachment download URL
+      description: Get a presigned URL to download an attachment
+      operationId: getAttachmentUrl
+      parameters:
+        - name: attachmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Download URL generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      downloadUrl:
+                        type: string
+                        format: uri
+                      expiresAt:
+                        type: string
+                        format: date-time

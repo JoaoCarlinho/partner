@@ -29,11 +29,13 @@ serviceAccount.json
 # Ignore iac - not creating remote state bucket yet
 infra/
 
+# Ignore build output
+dist/
+
 # Ignore scripts
 scripts/
 
 # Ignore node modules
 node_modules/
-dist/
 
 
