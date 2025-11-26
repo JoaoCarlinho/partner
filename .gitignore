@@ -1,3 +1,7 @@
+# logs
+logs/
+
+
 # process docs
 dev_docs/
 
@@ -48,3 +52,4 @@ node_modules/
 apps/api/lambda-api.zip
 lambda-package.zip
 migration-runner.zip
+lambda.zip

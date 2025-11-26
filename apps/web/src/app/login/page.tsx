@@ -27,22 +27,30 @@ export default function LoginPage() {
         credentials: 'include',
       });
 
-      const data = await response.json();
+      const response_data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
+        throw new Error(response_data.error?.message || response_data.error || 'Login failed');
       }
 
-      // Store token
-      if (data.token) {
-        localStorage.setItem('authToken', data.token);
+      // API returns { data: { user, organization }, meta: { csrfToken } }
+      const { data, meta } = response_data;
+
+      // Store user data for dashboard auth check
+      if (data?.user) {
+        localStorage.setItem('user', JSON.stringify(data.user));
       }
 
-      // Redirect based on role
-      if (data.user?.role === 'DEBTOR') {
-        router.push('/debtor/dashboard');
+      // Store CSRF token if provided
+      if (meta?.csrfToken) {
+        localStorage.setItem('csrfToken', meta.csrfToken);
+      }
+
+      // Redirect based on role - use window.location for reliable static export redirect
+      if (data?.user?.role === 'DEBTOR') {
+        window.location.href = '/debtor/dashboard';
       } else {
-        router.push('/dashboard');
+        window.location.href = '/dashboard';
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');

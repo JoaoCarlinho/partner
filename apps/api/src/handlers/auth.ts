@@ -591,4 +591,47 @@ router.post('/password-reset/confirm', async (req: Request, res: Response, next:
   }
 });
 
+/**
+ * POST /api/v1/auth/dev/verify-email
+ * DEV ONLY: Auto-verify user email (for testing)
+ */
+if (process.env.NODE_ENV !== 'production') {
+  router.post('/dev/verify-email', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        throw Errors.validation('Email is required');
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { email: email.toLowerCase() },
+      });
+
+      if (!user) {
+        throw Errors.notFound('User not found');
+      }
+
+      if (user.emailVerified) {
+        sendSuccess(res, { message: 'Email already verified' });
+        return;
+      }
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerified: true },
+      });
+
+      // Delete any verification tokens
+      await prisma.emailVerificationToken.deleteMany({
+        where: { userId: user.id },
+      });
+
+      sendSuccess(res, { message: 'Email verified successfully (dev mode)' });
+    } catch (error) {
+      next(error);
+    }
+  });
+}
+
 export default router;
