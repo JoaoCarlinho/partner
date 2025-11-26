@@ -40,4 +40,6 @@ scripts/
 # Ignore node modules
 node_modules/
 
-
+# Ignore lambda zip files
+apps/api/lambda-api.zip
+lambda-package.zip
