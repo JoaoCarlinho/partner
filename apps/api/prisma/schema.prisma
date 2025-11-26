@@ -90,6 +90,7 @@ model User {
   templatesCreated       Template[]               @relation("TemplateCreator")
   letterVersionsCreated  DemandLetterVersion[]
   letterApprovals        LetterApproval[]
+  debtorProfile          DebtorProfile?
 
   @@index([organizationId])
   @@map("users")
@@ -230,6 +231,14 @@ model Case {
   creditorName   String     @map("creditor_name")
   debtorName     String?    @map("debtor_name")
   debtorEmail    String?    @map("debtor_email")
+  // Identity verification fields (hashed)
+  debtorSsnHash       String?    @map("debtor_ssn_hash")
+  debtorDob           DateTime?  @map("debtor_dob") @db.Date
+  accountNumber       String?    @map("account_number")
+  referenceNumber     String?    @map("reference_number")
+  // Verification tracking
+  verificationAttempts Int       @default(0) @map("verification_attempts")
+  verificationLockedUntil DateTime? @map("verification_locked_until")
   metadata       Json?
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")
@@ -386,13 +395,27 @@ model LetterApproval {
 // ============================================
 
 model DebtorProfile {
-  id         String   @id @default(uuid())
-  caseId     String   @unique @map("case_id")
-  assessment Json?
-  outcome    String?
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id                    String    @id @default(uuid())
+  userId                String    @unique @map("user_id")
+  caseId                String    @unique @map("case_id")
+  invitationTokenUsed   String?   @map("invitation_token_used")
+  onboardingCompleted   Boolean   @default(false) @map("onboarding_completed")
+  welcomeShownAt        DateTime? @map("welcome_shown_at")
+  // Assessment data
+  financialAssessment   Json?     @map("financial_assessment")
+  comfortAssessment     Json?     @map("comfort_assessment")
+  intention             String?
+  // Terms acceptance tracking
+  termsAcceptedAt       DateTime? @map("terms_accepted_at")
+  termsAcceptedIp       String?   @map("terms_accepted_ip")
+  termsVersion          String?   @map("terms_version")
+  // Legacy fields
+  assessment            Json?
+  outcome               String?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
+  user User @relation(fields: [userId], references: [id])
   case Case @relation(fields: [caseId], references: [id])
 
   @@map("debtor_profiles")
