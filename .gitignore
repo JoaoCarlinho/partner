@@ -1,5 +1,5 @@
 # process docs
-docs/
+dev_docs/
 
 # macOS files
 .DS_Store
@@ -34,3 +34,6 @@ scripts/
 
 # Ignore node modules
 node_modules/
+dist/
+
+
