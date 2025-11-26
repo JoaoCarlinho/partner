@@ -16,6 +16,7 @@
     "prisma:push": "prisma db push"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.939.0",
     "@aws-sdk/client-kms": "^3.679.0",
     "@aws-sdk/client-ses": "^3.679.0",
     "@prisma/client": "^5.22.0",

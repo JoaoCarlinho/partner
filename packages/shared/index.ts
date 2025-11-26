@@ -11,3 +11,5 @@ export * from './constants/roles.js';
 export * from './constants/auditActions.js';
 export * from './constants/templateVariables.js';
 export * from './constants/fdcpaRules.js';
+export * from './schemas/demand.js';
+export * from './types/demand.js';
