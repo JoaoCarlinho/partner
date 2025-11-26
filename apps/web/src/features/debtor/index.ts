@@ -11,6 +11,7 @@ export { AmountOwedCard } from './components/AmountOwedCard';
 export { AssessmentChat } from './components/AssessmentChat';
 export { AssessmentForm } from './components/AssessmentForm';
 export { CreditorInfoCard } from './components/CreditorInfoCard';
+export { CrisisResources } from './components/CrisisResources';
 export { DebtorDashboard } from './pages/DebtorDashboard';
 export { TimelineCard } from './components/TimelineCard';
 export { OptionsPanel } from './components/OptionsPanel';
