@@ -3,13 +3,34 @@ docs/
 
 # macOS files
 .DS_Store
+
 # agile agent commands
 CLAUDE.md
 .claude/
 bmad/
 
-# Ignore secress
+# Ignore secrets
 tokens
+
+# Environment files
+.env
+.env.*
+*.env
+
+# Credentials and keys
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+credentials.json
+serviceAccount.json
 
 # Ignore iac - not creating remote state bucket yet
 infra/
+
+# Ignore scripts
+scripts/
+
+# Ignore node modules
+node_modules/

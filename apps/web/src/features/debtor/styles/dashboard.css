@@ -1,0 +1,161 @@
+/**
+ * Dashboard Styles
+ * CSS for the debtor dashboard components
+ */
+
+/* Animation keyframes */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Utility classes */
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Tooltip styles */
+.tooltip-trigger:hover .tooltip-content {
+  visibility: visible;
+  opacity: 1;
+}
+
+.tooltip-content {
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* Touch-friendly button targets */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Card hover effects */
+.card-hover {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Urgency color classes */
+.urgency-low {
+  color: #10B981;
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.urgency-medium {
+  color: #F59E0B;
+  background-color: rgba(245, 158, 11, 0.1);
+}
+
+.urgency-high {
+  color: #F97316;
+  background-color: rgba(249, 115, 22, 0.1);
+}
+
+.urgency-critical {
+  color: #EF4444;
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Mobile-first responsive adjustments */
+@media (max-width: 768px) {
+  /* Stack cards vertically */
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Larger touch targets on mobile */
+  button,
+  .clickable {
+    min-height: 48px;
+  }
+
+  /* Adjust font sizes for mobile */
+  .amount-total {
+    font-size: 2rem;
+  }
+
+  /* Full-width cards on mobile */
+  .card {
+    margin-left: -1rem;
+    margin-right: -1rem;
+    border-radius: 0;
+  }
+}
+
+/* Tablet and larger */
+@media (min-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+  .dashboard-container {
+    max-width: 1024px;
+    margin: 0 auto;
+  }
+}
+
+/* Focus states for accessibility */
+button:focus,
+a:focus,
+[tabindex]:focus {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .urgency-low {
+    border: 2px solid #10B981;
+  }
+
+  .urgency-medium {
+    border: 2px solid #F59E0B;
+  }
+
+  .urgency-high {
+    border: 2px solid #F97316;
+  }
+
+  .urgency-critical {
+    border: 2px solid #EF4444;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
