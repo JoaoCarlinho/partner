@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { CollectorNav } from '@/components/CollectorNav';
 
 interface User {
   id: string;
@@ -22,9 +24,12 @@ export default function DashboardPage() {
       return;
     }
 
-    // Decode JWT to get user info
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.role === 'DEBTOR') {
+        router.push('/debtor/dashboard');
+        return;
+      }
       setUser({
         id: payload.sub,
         email: payload.email,
@@ -39,12 +44,7 @@ export default function DashboardPage() {
     setLoading(false);
   }, [router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('authToken');
-    router.push('/login');
-  };
-
-  if (loading) {
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -54,54 +54,101 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-gray-900">Steno Partner Portal</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-500">{user?.email}</span>
-              <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary-100 text-primary-800">
-                {user?.role}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Sign out
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <CollectorNav user={user} />
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Welcome to Steno</h2>
+          {/* Welcome Section */}
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-2">Welcome back!</h2>
             <p className="text-gray-600">
-              You are logged in as <strong>{user?.email}</strong> with role <strong>{user?.role}</strong>.
+              You are logged in as <strong>{user.email}</strong>.
             </p>
+          </div>
 
-            <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <h3 className="text-sm font-medium text-gray-900">Cases</h3>
-                <p className="mt-1 text-2xl font-semibold text-primary-600">0</p>
-                <p className="mt-1 text-xs text-gray-500">Active cases</p>
+          {/* Quick Stats */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+            <Link href="/cases" className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Active Cases</p>
+                  <p className="mt-1 text-2xl font-semibold text-primary-600">0</p>
+                </div>
+                <span className="text-2xl">📁</span>
               </div>
+            </Link>
 
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <h3 className="text-sm font-medium text-gray-900">Templates</h3>
-                <p className="mt-1 text-2xl font-semibold text-primary-600">0</p>
-                <p className="mt-1 text-xs text-gray-500">Demand letter templates</p>
+            <Link href="/analytics" className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Collection Rate</p>
+                  <p className="mt-1 text-2xl font-semibold text-green-600">0%</p>
+                </div>
+                <span className="text-2xl">📈</span>
               </div>
+            </Link>
 
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <h3 className="text-sm font-medium text-gray-900">Compliance</h3>
-                <p className="mt-1 text-2xl font-semibold text-green-600">100%</p>
-                <p className="mt-1 text-xs text-gray-500">Compliance rate</p>
+            <Link href="/compliance" className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Compliance</p>
+                  <p className="mt-1 text-2xl font-semibold text-green-600">100%</p>
+                </div>
+                <span className="text-2xl">✓</span>
               </div>
+            </Link>
+
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Pending Actions</p>
+                  <p className="mt-1 text-2xl font-semibold text-yellow-600">0</p>
+                </div>
+                <span className="text-2xl">⏳</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Link
+                href="/cases"
+                className="flex flex-col items-center p-4 rounded-lg border border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition-colors"
+              >
+                <span className="text-2xl mb-2">📁</span>
+                <span className="text-sm font-medium text-gray-700">View Cases</span>
+              </Link>
+              <button className="flex flex-col items-center p-4 rounded-lg border border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition-colors">
+                <span className="text-2xl mb-2">➕</span>
+                <span className="text-sm font-medium text-gray-700">New Case</span>
+              </button>
+              <Link
+                href="/analytics"
+                className="flex flex-col items-center p-4 rounded-lg border border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition-colors"
+              >
+                <span className="text-2xl mb-2">📊</span>
+                <span className="text-sm font-medium text-gray-700">Analytics</span>
+              </Link>
+              <Link
+                href="/compliance"
+                className="flex flex-col items-center p-4 rounded-lg border border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition-colors"
+              >
+                <span className="text-2xl mb-2">🛡️</span>
+                <span className="text-sm font-medium text-gray-700">Compliance</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h3>
+            <div className="text-center py-8 text-gray-500">
+              <p>No recent activity</p>
+              <Link href="/cases" className="text-primary-600 hover:underline mt-2 inline-block">
+                View all cases
+              </Link>
             </div>
           </div>
         </div>
