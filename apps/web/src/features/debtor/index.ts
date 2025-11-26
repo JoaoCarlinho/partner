@@ -1,5 +1,6 @@
 /**
  * Debtor Feature Module
+ * Components and utilities for debtor-facing features
  * Exports all debtor-related components, hooks, and pages
  */
 
@@ -13,6 +14,7 @@ export { AssessmentForm } from './components/AssessmentForm';
 export { CreditorInfoCard } from './components/CreditorInfoCard';
 export { CrisisResources } from './components/CrisisResources';
 export { DebtorDashboard } from './pages/DebtorDashboard';
+export { NotificationPreferences } from './components/NotificationPreferences';
 export { TimelineCard } from './components/TimelineCard';
 export { OptionsPanel } from './components/OptionsPanel';
 
