@@ -16,26 +16,26 @@ export default function DebtorDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
       router.push('/login');
       return;
     }
 
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.role !== 'DEBTOR') {
+      const userData = JSON.parse(userStr);
+      if (userData.role !== 'DEBTOR') {
         router.push('/dashboard');
         return;
       }
       setUser({
-        id: payload.sub,
-        email: payload.email,
-        role: payload.role,
-        caseId: payload.caseId,
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
+        caseId: userData.caseId,
       });
     } catch {
-      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
       router.push('/login');
     }
 
@@ -43,7 +43,8 @@ export default function DebtorDashboardPage() {
   }, [router]);
 
   const handleLogout = () => {
-    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    localStorage.removeItem('csrfToken');
     router.push('/login');
   };
 

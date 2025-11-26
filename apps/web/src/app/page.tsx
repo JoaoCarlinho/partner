@@ -8,8 +8,8 @@ export default function Home() {
 
   useEffect(() => {
     // Check if user is authenticated
-    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
-    if (token) {
+    const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+    if (userStr) {
       router.push('/dashboard');
     } else {
       router.push('/login');

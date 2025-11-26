@@ -67,8 +67,8 @@ export default function CaseViewContent() {
   const [activeTab, setActiveTab] = useState<'details' | 'messages' | 'documents'>('details');
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
       router.push('/login');
       return;
     }
@@ -79,31 +79,29 @@ export default function CaseViewContent() {
     }
 
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.role === 'DEBTOR') {
+      const userData = JSON.parse(userStr);
+      if (userData.role === 'DEBTOR') {
         router.push('/debtor/dashboard');
         return;
       }
       setUser({
-        id: payload.sub,
-        email: payload.email,
-        role: payload.role,
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
       });
-      fetchCaseData(token);
-      fetchMessages(token);
+      fetchCaseData();
+      fetchMessages();
     } catch {
-      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
       router.push('/login');
     }
   }, [router, caseId]);
 
-  const fetchCaseData = async (token: string) => {
+  const fetchCaseData = async () => {
     if (!caseId) return;
     try {
       const response = await fetch(`${API_URL}/api/v1/cases/${caseId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -117,13 +115,11 @@ export default function CaseViewContent() {
     }
   };
 
-  const fetchMessages = async (token: string) => {
+  const fetchMessages = async () => {
     if (!caseId) return;
     try {
       const response = await fetch(`${API_URL}/api/v1/cases/${caseId}/messages`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -139,21 +135,20 @@ export default function CaseViewContent() {
     if (!newMessage.trim() || !user || !caseId) return;
 
     setSendingMessage(true);
-    const token = localStorage.getItem('authToken');
 
     try {
       const response = await fetch(`${API_URL}/api/v1/cases/${caseId}/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ content: newMessage }),
       });
 
       if (response.ok) {
         setNewMessage('');
-        fetchMessages(token!);
+        fetchMessages();
       }
     } catch (error) {
       console.error('Failed to send message:', error);

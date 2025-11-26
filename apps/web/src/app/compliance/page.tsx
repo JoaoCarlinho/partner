@@ -102,36 +102,36 @@ export default function CompliancePage() {
   const [resolveNotes, setResolveNotes] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
       router.push('/login');
       return;
     }
 
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.role === 'DEBTOR') {
+      const userData = JSON.parse(userStr);
+      if (userData.role === 'DEBTOR') {
         router.push('/debtor/dashboard');
         return;
       }
       setUser({
-        id: payload.sub,
-        email: payload.email,
-        role: payload.role,
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
       });
-      loadData(token);
+      loadData();
     } catch {
-      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
       router.push('/login');
     }
   }, [router]);
 
-  const loadData = async (token: string) => {
+  const loadData = async () => {
     setLoading(true);
     try {
       // Load summary
       const summaryRes = await fetch(`${API_URL}/api/v1/compliance/summary`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (summaryRes.ok) {
         const summaryData = await summaryRes.json();
@@ -148,7 +148,7 @@ export default function CompliancePage() {
 
       // Load unresolved flags
       const flagsRes = await fetch(`${API_URL}/api/v1/compliance/flags?resolved=false&limit=10`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (flagsRes.ok) {
         const flagsData = await flagsRes.json();
@@ -195,21 +195,20 @@ export default function CompliancePage() {
   const handleResolve = async () => {
     if (!resolvingId || !resolveNotes.trim()) return;
 
-    const token = localStorage.getItem('authToken');
     try {
       const response = await fetch(`${API_URL}/api/v1/compliance/flags/${resolvingId}/resolve`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
         body: JSON.stringify({ resolutionNotes: resolveNotes }),
       });
 
       if (response.ok) {
         setResolvingId(null);
         setResolveNotes('');
-        loadData(token!);
+        loadData();
       }
     } catch (error) {
       console.error('Failed to resolve flag:', error);
@@ -236,7 +235,7 @@ export default function CompliancePage() {
             <p className="text-sm text-gray-600">Monitor FDCPA and Regulation F compliance</p>
           </div>
           <button
-            onClick={() => loadData(localStorage.getItem('authToken')!)}
+            onClick={() => loadData()}
             className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
           >
             Refresh

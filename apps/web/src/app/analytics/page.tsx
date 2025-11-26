@@ -96,25 +96,25 @@ export default function AnalyticsPage() {
   const [period, setPeriod] = useState('month');
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
       router.push('/login');
       return;
     }
 
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.role === 'DEBTOR') {
+      const userData = JSON.parse(userStr);
+      if (userData.role === 'DEBTOR') {
         router.push('/debtor/dashboard');
         return;
       }
       setUser({
-        id: payload.sub,
-        email: payload.email,
-        role: payload.role,
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
       });
     } catch {
-      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
       router.push('/login');
     }
   }, [router]);
@@ -123,13 +123,9 @@ export default function AnalyticsPage() {
     setLoading(true);
     setError(null);
 
-    const token = localStorage.getItem('authToken');
-
     try {
       const response = await fetch(`${API_URL}/api/v1/analytics/dashboard?period=${period}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
       });
 
       if (!response.ok) {

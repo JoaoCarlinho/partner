@@ -33,6 +33,13 @@ const STATUS_COLORS: Record<string, string> = {
   DISPUTED: 'bg-red-100 text-red-800',
 };
 
+interface NewCaseForm {
+  creditorName: string;
+  debtorName: string;
+  debtorEmail: string;
+  debtAmount: string;
+}
+
 export default function CasesPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -40,38 +47,45 @@ export default function CasesPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showNewCaseModal, setShowNewCaseModal] = useState(false);
+  const [newCaseForm, setNewCaseForm] = useState<NewCaseForm>({
+    creditorName: '',
+    debtorName: '',
+    debtorEmail: '',
+    debtAmount: '',
+  });
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
       router.push('/login');
       return;
     }
 
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.role === 'DEBTOR') {
+      const userData = JSON.parse(userStr);
+      if (userData.role === 'DEBTOR') {
         router.push('/debtor/dashboard');
         return;
       }
       setUser({
-        id: payload.sub,
-        email: payload.email,
-        role: payload.role,
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
       });
-      fetchCases(token);
+      fetchCases();
     } catch {
-      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
       router.push('/login');
     }
   }, [router]);
 
-  const fetchCases = async (token: string) => {
+  const fetchCases = async () => {
     try {
       const response = await fetch(`${API_URL}/api/v1/cases`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -94,6 +108,45 @@ export default function CasesPage() {
     return matchesSearch && matchesStatus;
   });
 
+  const handleCreateCase = async () => {
+    if (!newCaseForm.creditorName || !newCaseForm.debtorName || !newCaseForm.debtorEmail || !newCaseForm.debtAmount) {
+      setCreateError('All fields are required');
+      return;
+    }
+
+    setCreating(true);
+    setCreateError('');
+
+    try {
+      const response = await fetch(`${API_URL}/api/v1/demands/cases`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          creditorName: newCaseForm.creditorName,
+          debtorName: newCaseForm.debtorName,
+          debtorEmail: newCaseForm.debtorEmail,
+          debtAmount: parseFloat(newCaseForm.debtAmount),
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error?.message || 'Failed to create case');
+      }
+
+      setShowNewCaseModal(false);
+      setNewCaseForm({ creditorName: '', debtorName: '', debtorEmail: '', debtAmount: '' });
+      fetchCases();
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : 'Failed to create case');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -113,7 +166,10 @@ export default function CasesPage() {
             <h1 className="text-2xl font-bold text-gray-900">Cases</h1>
             <p className="text-sm text-gray-600">Manage debt collection cases</p>
           </div>
-          <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+          <button
+            onClick={() => setShowNewCaseModal(true)}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          >
             + New Case
           </button>
         </div>
@@ -244,6 +300,86 @@ export default function CasesPage() {
           )}
         </div>
       </main>
+
+      {/* New Case Modal */}
+      {showNewCaseModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Case</h3>
+
+            {createError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {createError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Creditor Name</label>
+                <input
+                  type="text"
+                  value={newCaseForm.creditorName}
+                  onChange={(e) => setNewCaseForm({ ...newCaseForm, creditorName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="Enter creditor name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Debtor Name</label>
+                <input
+                  type="text"
+                  value={newCaseForm.debtorName}
+                  onChange={(e) => setNewCaseForm({ ...newCaseForm, debtorName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="Enter debtor name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Debtor Email</label>
+                <input
+                  type="email"
+                  value={newCaseForm.debtorEmail}
+                  onChange={(e) => setNewCaseForm({ ...newCaseForm, debtorEmail: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="Enter debtor email"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Debt Amount ($)</label>
+                <input
+                  type="number"
+                  value={newCaseForm.debtAmount}
+                  onChange={(e) => setNewCaseForm({ ...newCaseForm, debtAmount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="Enter debt amount"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowNewCaseModal(false);
+                  setCreateError('');
+                  setNewCaseForm({ creditorName: '', debtorName: '', debtorEmail: '', debtAmount: '' });
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateCase}
+                disabled={creating}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                {creating ? 'Creating...' : 'Create Case'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
