@@ -30,6 +30,7 @@
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.2",
     "pdfkit": "^0.17.2",
+    "pg": "^8.16.3",
     "serverless-http": "^4.0.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
@@ -52,5 +53,14 @@
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
-  }
+  },
+  "description": "",
+  "directories": {
+    "test": "tests"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "types": "./dist/app.d.ts"
 }
