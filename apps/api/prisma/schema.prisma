@@ -33,6 +33,8 @@ enum LetterStatus {
   DRAFT
   PENDING_REVIEW
   APPROVED
+  REJECTED
+  READY_TO_SEND
   SENT
 }
 
@@ -87,6 +89,7 @@ model User {
   auditLogs              AuditLog[]
   templatesCreated       Template[]               @relation("TemplateCreator")
   letterVersionsCreated  DemandLetterVersion[]
+  letterApprovals        LetterApproval[]
 
   @@index([organizationId])
   @@map("users")
@@ -264,9 +267,10 @@ model DemandLetter {
   createdAt               DateTime     @default(now()) @map("created_at")
   updatedAt               DateTime     @updatedAt @map("updated_at")
 
-  case     Case      @relation(fields: [caseId], references: [id])
-  template Template? @relation(fields: [templateId], references: [id])
-  versions DemandLetterVersion[]
+  case      Case      @relation(fields: [caseId], references: [id])
+  template  Template? @relation(fields: [templateId], references: [id])
+  versions  DemandLetterVersion[]
+  approvals LetterApproval[]
 
   @@index([caseId])
   @@index([invitationToken])
@@ -352,6 +356,29 @@ model Payment {
 
   @@index([paymentPlanId])
   @@map("payments")
+}
+
+// ============================================
+// APPROVAL WORKFLOW - Epic 2: Demand Generation
+// ============================================
+
+model LetterApproval {
+  id              String   @id @default(uuid())
+  demandLetterId  String   @map("demand_letter_id")
+  action          String   // submit, approve, reject
+  actorId         String   @map("actor_id")
+  reason          String?  // For rejections
+  signatureData   Json?    @map("signature_data")
+  ipAddress       String?  @map("ip_address")
+  userAgent       String?  @map("user_agent")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  demandLetter DemandLetter @relation(fields: [demandLetterId], references: [id], onDelete: Cascade)
+  actor        User         @relation(fields: [actorId], references: [id])
+
+  @@index([demandLetterId])
+  @@index([actorId])
+  @@map("letter_approvals")
 }
 
 // ============================================

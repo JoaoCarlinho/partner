@@ -19,6 +19,17 @@ import {
   revokeInvitation,
   InvitationError,
 } from '../services/invitation/invitationService.js';
+import {
+  submitForReview,
+  approveLetter,
+  rejectLetter,
+  prepareForSending,
+  markAsSent,
+  getApprovalHistory,
+  getLatestApproval,
+  WorkflowError,
+} from '../services/workflow/approvalWorkflow.js';
+import { generateLetterPDF } from '../services/pdf/pdfGenerator.js';
 import { logger } from '../middleware/logger.js';
 import { prisma } from '../lib/prisma.js';
 import { logAuditEvent } from '../services/audit/auditLogger.js';
@@ -27,6 +38,15 @@ import { z } from 'zod';
 // Refinement request schema
 const refineLetterSchema = z.object({
   instruction: z.string().min(1, 'Instruction is required').max(1000, 'Instruction too long'),
+});
+
+// Approval schemas
+const approveLetterSchema = z.object({
+  signature: z.string().optional(),
+});
+
+const rejectLetterSchema = z.object({
+  reason: z.string().min(1, 'Rejection reason is required').max(2000, 'Reason too long'),
 });
 
 const router = Router();
@@ -890,6 +910,417 @@ router.get(
   authorize('demands:read'),
   async (_req: Request, res: Response): Promise<void> => {
     res.json(successResponse(COMMON_REFINEMENT_SUGGESTIONS));
+  }
+);
+
+// ============================================
+// APPROVAL WORKFLOW ENDPOINTS
+// ============================================
+
+/**
+ * GET /api/v1/demands/:demandId/preview
+ * Generate a PDF preview of the demand letter
+ */
+router.get(
+  '/:demandId/preview',
+  authorize('demands:read'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const organizationId = req.user!.organizationId;
+
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: { id: demandId, organizationId },
+        include: {
+          case: {
+            select: {
+              creditorName: true,
+              debtorName: true,
+              debtorEmail: true,
+              debtAmount: true,
+            },
+          },
+          organization: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      // Get approval info if approved
+      let approval;
+      if (demandLetter.status === 'APPROVED' || demandLetter.status === 'SENT') {
+        approval = await getLatestApproval(demandId);
+      }
+
+      // Generate PDF
+      const pdfBuffer = await generateLetterPDF({
+        content: demandLetter.content,
+        metadata: {
+          caseReference: `${demandLetter.case.debtorName} v. ${demandLetter.case.creditorName}`,
+          createdAt: demandLetter.createdAt.toISOString(),
+          status: demandLetter.status,
+        },
+        letterhead: {
+          organizationName: demandLetter.organization.name,
+        },
+        approval: approval ? {
+          approverName: approval.actor.email,
+          approvedAt: approval.createdAt.toISOString(),
+          signatureHash: (approval.signatureData as { signatureHash?: string })?.signatureHash,
+        } : undefined,
+      });
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="demand-letter-${demandId}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/demands/:demandId/submit-for-review
+ * Submit a demand letter for attorney review
+ */
+router.post(
+  '/:demandId/submit-for-review',
+  authorize('demands:update'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const userId = req.user!.id;
+      const organizationId = req.user!.organizationId;
+      const ipAddress = req.ip || req.socket.remoteAddress;
+      const userAgent = req.headers['user-agent'];
+
+      // Verify the letter belongs to the organization
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: { id: demandId, organizationId },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      const result = await submitForReview(demandId, userId, ipAddress, userAgent);
+
+      logAuditEvent(req, {
+        action: AuditAction.DEMAND_LETTER_UPDATED,
+        resourceType: 'DemandLetter',
+        resourceId: demandId,
+        metadata: {
+          action: 'submit_for_review',
+          newStatus: result.status,
+        },
+      });
+
+      res.json(
+        successResponse({
+          message: 'Letter submitted for review',
+          status: result.status,
+        })
+      );
+    } catch (error) {
+      if (error instanceof WorkflowError) {
+        const statusMap: Record<string, number> = {
+          NOT_FOUND: 404,
+          INVALID_TRANSITION: 400,
+          NOT_COMPLIANT: 400,
+        };
+        const status = statusMap[error.code] || 400;
+        res.status(status).json(errorResponse(error.message, error.code));
+        return;
+      }
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/demands/:demandId/approve
+ * Approve a demand letter (attorney only)
+ */
+router.post(
+  '/:demandId/approve',
+  authorize('demands:approve'),
+  validate({ body: approveLetterSchema }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const { signature } = req.body;
+      const userId = req.user!.id;
+      const organizationId = req.user!.organizationId;
+      const ipAddress = req.ip || req.socket.remoteAddress;
+      const userAgent = req.headers['user-agent'];
+
+      // Verify the letter belongs to the organization
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: { id: demandId, organizationId },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      const result = await approveLetter(demandId, userId, {
+        signature,
+        ipAddress,
+        userAgent,
+      });
+
+      logAuditEvent(req, {
+        action: AuditAction.DEMAND_LETTER_UPDATED,
+        resourceType: 'DemandLetter',
+        resourceId: demandId,
+        metadata: {
+          action: 'approve',
+          newStatus: result.status,
+          approvalId: result.approvalId,
+        },
+      });
+
+      res.json(
+        successResponse({
+          message: 'Letter approved',
+          status: result.status,
+          approvalId: result.approvalId,
+        })
+      );
+    } catch (error) {
+      if (error instanceof WorkflowError) {
+        const statusMap: Record<string, number> = {
+          NOT_FOUND: 404,
+          INVALID_TRANSITION: 400,
+        };
+        const status = statusMap[error.code] || 400;
+        res.status(status).json(errorResponse(error.message, error.code));
+        return;
+      }
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/demands/:demandId/reject
+ * Reject a demand letter with reason
+ */
+router.post(
+  '/:demandId/reject',
+  authorize('demands:approve'),
+  validate({ body: rejectLetterSchema }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const { reason } = req.body;
+      const userId = req.user!.id;
+      const organizationId = req.user!.organizationId;
+      const ipAddress = req.ip || req.socket.remoteAddress;
+      const userAgent = req.headers['user-agent'];
+
+      // Verify the letter belongs to the organization
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: { id: demandId, organizationId },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      const result = await rejectLetter(demandId, userId, reason, {
+        ipAddress,
+        userAgent,
+      });
+
+      logAuditEvent(req, {
+        action: AuditAction.DEMAND_LETTER_UPDATED,
+        resourceType: 'DemandLetter',
+        resourceId: demandId,
+        metadata: {
+          action: 'reject',
+          newStatus: result.status,
+          reason,
+        },
+      });
+
+      res.json(
+        successResponse({
+          message: 'Letter rejected and returned to draft',
+          status: result.status,
+        })
+      );
+    } catch (error) {
+      if (error instanceof WorkflowError) {
+        const statusMap: Record<string, number> = {
+          NOT_FOUND: 404,
+          INVALID_TRANSITION: 400,
+          MISSING_REASON: 400,
+        };
+        const status = statusMap[error.code] || 400;
+        res.status(status).json(errorResponse(error.message, error.code));
+        return;
+      }
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/demands/:demandId/prepare-send
+ * Prepare an approved letter for sending
+ */
+router.post(
+  '/:demandId/prepare-send',
+  authorize('demands:update'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const userId = req.user!.id;
+      const organizationId = req.user!.organizationId;
+
+      // Verify the letter belongs to the organization
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: { id: demandId, organizationId },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      const result = await prepareForSending(demandId, userId);
+
+      logAuditEvent(req, {
+        action: AuditAction.DEMAND_LETTER_UPDATED,
+        resourceType: 'DemandLetter',
+        resourceId: demandId,
+        metadata: {
+          action: 'prepare_send',
+          newStatus: result.status,
+        },
+      });
+
+      res.json(
+        successResponse({
+          message: 'Letter ready to send',
+          status: result.status,
+        })
+      );
+    } catch (error) {
+      if (error instanceof WorkflowError) {
+        const statusMap: Record<string, number> = {
+          NOT_FOUND: 404,
+          INVALID_TRANSITION: 400,
+        };
+        const status = statusMap[error.code] || 400;
+        res.status(status).json(errorResponse(error.message, error.code));
+        return;
+      }
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/demands/:demandId/send
+ * Mark a letter as sent
+ */
+router.post(
+  '/:demandId/send',
+  authorize('demands:update'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const userId = req.user!.id;
+      const organizationId = req.user!.organizationId;
+
+      // Verify the letter belongs to the organization
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: { id: demandId, organizationId },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      const result = await markAsSent(demandId, userId);
+
+      logAuditEvent(req, {
+        action: AuditAction.DEMAND_LETTER_SENT,
+        resourceType: 'DemandLetter',
+        resourceId: demandId,
+        metadata: {
+          action: 'send',
+          newStatus: result.status,
+        },
+      });
+
+      res.json(
+        successResponse({
+          message: 'Letter marked as sent',
+          status: result.status,
+        })
+      );
+    } catch (error) {
+      if (error instanceof WorkflowError) {
+        const statusMap: Record<string, number> = {
+          NOT_FOUND: 404,
+          INVALID_TRANSITION: 400,
+        };
+        const status = statusMap[error.code] || 400;
+        res.status(status).json(errorResponse(error.message, error.code));
+        return;
+      }
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/demands/:demandId/approvals
+ * Get approval history for a demand letter
+ */
+router.get(
+  '/:demandId/approvals',
+  authorize('demands:read'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const organizationId = req.user!.organizationId;
+
+      // Verify the letter belongs to the organization
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: { id: demandId, organizationId },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      const history = await getApprovalHistory(demandId);
+
+      res.json(
+        successResponse({
+          currentStatus: demandLetter.status,
+          history,
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
   }
 );
 
