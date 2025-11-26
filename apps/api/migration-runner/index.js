@@ -3,7 +3,10 @@ const fs = require('fs');
 
 exports.handler = async () => {
   const client = new Client({
-    connectionString: process.env.DATABASE_URL
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
   });
 
   try {
