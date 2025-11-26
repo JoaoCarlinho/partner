@@ -32,6 +32,7 @@ infra/
 # Ignore build output
 dist/
 .turbo/
+deployment/
 
 # Ignore scripts
 scripts/
