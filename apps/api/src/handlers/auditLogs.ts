@@ -49,7 +49,7 @@ router.get(
 
       // Build where clause
       const where: Record<string, unknown> = {
-        organizationId: req.user.org_id,
+        organizationId: req.user.organizationId,
       };
 
       if (startDate || endDate) {
@@ -144,7 +144,7 @@ router.get(
       const auditLog = await prisma.auditLog.findFirst({
         where: {
           id: req.params.id,
-          organizationId: req.user.org_id,
+          organizationId: req.user.organizationId,
         },
         include: {
           user: {

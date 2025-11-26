@@ -99,7 +99,7 @@ router.post('/register', async (req: Request, res: Response, next: NextFunction)
       }
 
       organizationId = invite.organizationId;
-      userRole = invite.role;
+      userRole = invite.role as unknown as Role;
 
       // Mark invite as used
       await prisma.organizationInvite.update({

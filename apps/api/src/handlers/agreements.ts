@@ -213,7 +213,7 @@ router.post('/:id/sign', (req: Request, res: Response) => {
     };
 
     // Record signature
-    agreement.signatures[role] = signature;
+    agreement.signatures[role as 'creditor' | 'debtor'] = signature;
     agreement.updatedAt = now;
 
     // Update status

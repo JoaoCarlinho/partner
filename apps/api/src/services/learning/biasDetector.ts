@@ -56,7 +56,7 @@ export interface OutcomeRecord {
 }
 
 // Segment definitions
-const SEGMENT_DEFINITIONS = [
+const SEGMENT_DEFINITIONS: Array<{ name: string; filter: Record<string, string> }> = [
   { name: 'debt_low', filter: { debt_range: '0-1000' } },
   { name: 'debt_medium', filter: { debt_range: '1000-5000' } },
   { name: 'debt_high', filter: { debt_range: '5000-10000' } },

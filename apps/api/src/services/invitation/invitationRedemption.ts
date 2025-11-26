@@ -148,8 +148,9 @@ export async function verifyDebtorIdentity(
   // Method 1: SSN (last 4) + DOB verification
   if (verification.lastFourSSN && verification.dateOfBirth && caseData.debtorSsnHash) {
     const ssnMatch = await bcrypt.compare(verification.lastFourSSN, caseData.debtorSsnHash);
-    const dobMatch = caseData.debtorDob &&
-      formatDate(caseData.debtorDob) === verification.dateOfBirth;
+    const dobMatch = caseData.debtorDob
+      ? formatDate(caseData.debtorDob) === verification.dateOfBirth
+      : false;
     verified = ssnMatch && dobMatch;
   }
 

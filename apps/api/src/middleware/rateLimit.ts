@@ -44,8 +44,8 @@ setInterval(() => {
  */
 function getRateLimitKey(req: Request): string {
   // Use organization ID if authenticated
-  if (req.user?.org_id) {
-    return `org:${req.user.org_id}`;
+  if (req.user?.organizationId) {
+    return `org:${req.user.organizationId}`;
   }
 
   // Fall back to IP address
@@ -92,8 +92,7 @@ export function rateLimit(config: Partial<RateLimitConfig> = {}) {
       res.status(429).json(
         errorResponse(
           ErrorCode.RATE_LIMITED,
-          'Too many requests. Please try again later.',
-          [{ retryAfter: resetTime }]
+          'Too many requests. Please try again later.'
         )
       );
       return;

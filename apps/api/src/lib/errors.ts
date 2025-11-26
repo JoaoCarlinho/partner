@@ -1,4 +1,32 @@
 import { ErrorCode, ErrorStatusMap } from '@steno/shared';
+import { ZodIssue } from 'zod';
+
+// Re-export ErrorCode for use by other modules
+export { ErrorCode };
+
+// Type for validation details - can be either format
+type ValidationDetails = Record<string, string[]> | ZodIssue[];
+
+/**
+ * Convert ZodIssue[] to Record<string, string[]>
+ */
+function normalizeValidationDetails(details?: ValidationDetails): Record<string, string[]> | undefined {
+  if (!details) return undefined;
+
+  // If already in the right format
+  if (!Array.isArray(details)) return details;
+
+  // Convert ZodIssue[] to Record<string, string[]>
+  const normalized: Record<string, string[]> = {};
+  for (const issue of details) {
+    const path = issue.path.join('.') || 'root';
+    if (!normalized[path]) {
+      normalized[path] = [];
+    }
+    normalized[path].push(issue.message);
+  }
+  return normalized;
+}
 
 /**
  * Application error class for consistent error handling
@@ -40,8 +68,8 @@ export class AppError extends Error {
 
 // Convenience factory functions
 export const Errors = {
-  validation: (message: string, details?: Record<string, string[]>) =>
-    new AppError(ErrorCode.VALIDATION_ERROR, message, details),
+  validation: (message: string, details?: ValidationDetails) =>
+    new AppError(ErrorCode.VALIDATION_ERROR, message, normalizeValidationDetails(details)),
 
   notFound: (resource: string) =>
     new AppError(ErrorCode.NOT_FOUND, `${resource} not found`),

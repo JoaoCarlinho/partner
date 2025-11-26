@@ -32,7 +32,7 @@ export function hashToken(token: string): string {
  * Generate JWT access token
  */
 export function generateAccessToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'] });
 }
 
 /**

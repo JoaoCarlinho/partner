@@ -12,9 +12,10 @@ import { validateReadability } from '../services/text/readability.js';
 import { logAuditEvent } from '../services/audit/auditLogger.js';
 import { logger } from '../middleware/logger.js';
 import { prisma } from '../lib/prisma.js';
+import { AuditAction } from '@steno/shared';
 
-// Audit action for paraphrasing (to be added to @steno/shared)
-const AUDIT_ACTION_DEMAND_LETTER_PARAPHRASED = 'DEMAND_LETTER_PARAPHRASED';
+// Use the proper enum value
+const AUDIT_ACTION_DEMAND_LETTER_PARAPHRASED = AuditAction.DEMAND_LETTER_PARAPHRASED;
 
 const router = Router();
 

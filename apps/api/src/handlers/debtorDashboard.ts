@@ -9,14 +9,15 @@ import { successResponse, errorResponse } from '../lib/response.js';
 import { logAuditEvent } from '../services/audit/auditLogger.js';
 import { logger } from '../middleware/logger.js';
 import { prisma } from '../lib/prisma.js';
+import { AuditAction } from '@steno/shared';
 
 const router = Router();
 
 // All routes require authentication
 router.use(authenticate);
 
-// Audit action constant
-const AUDIT_ACTION_DASHBOARD_VIEWED = 'DEBTOR_DASHBOARD_VIEWED';
+// Use the proper enum value
+const AUDIT_ACTION_DASHBOARD_VIEWED = AuditAction.DEBTOR_DASHBOARD_VIEWED;
 
 /**
  * Format currency amount for display

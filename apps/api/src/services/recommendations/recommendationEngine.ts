@@ -329,7 +329,7 @@ function generateEscalationRecommendation(
 /**
  * Calculate success probability
  */
-function calculateSuccessProbability(
+export function calculateSuccessProbability(
   context: ProfileContext,
   similarProfiles: SimilarProfileSummary[]
 ): SuccessPrediction {

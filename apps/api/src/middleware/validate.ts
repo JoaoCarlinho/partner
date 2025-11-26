@@ -120,7 +120,7 @@ export function validate(config: ValidationConfig) {
 
       // If any validation failed, throw error
       if (Object.keys(errors).length > 0) {
-        throw Errors.validation('Request validation failed', Object.values(errors).flat());
+        throw Errors.validation('Request validation failed', errors);
       }
 
       next();

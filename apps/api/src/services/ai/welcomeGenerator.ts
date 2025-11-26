@@ -103,14 +103,14 @@ export async function generateWelcomeMessage(
       if (toneAnalysis.passed) {
         logger.info('Welcome message generated', {
           attempts,
-          warmth: toneAnalysis.warmth,
+          warmth: toneAnalysis.warmthScore,
           latencyMs: Date.now() - startTime,
         });
 
         return {
           message,
           toneAnalysis: {
-            warmth: toneAnalysis.warmth,
+            warmth: toneAnalysis.warmthScore,
             passed: true,
           },
           isAiGenerated: true,
@@ -121,7 +121,7 @@ export async function generateWelcomeMessage(
 
       logger.warn('Welcome message failed tone check, regenerating', {
         attempt: attempts,
-        warmth: toneAnalysis.warmth,
+        warmth: toneAnalysis.warmthScore,
         recommendation: toneAnalysis.recommendation,
       });
     } catch (error) {
@@ -135,7 +135,7 @@ export async function generateWelcomeMessage(
   // All attempts failed, use fallback
   logger.warn('Using fallback welcome message after failed attempts', {
     attempts,
-    lastWarmth: lastToneAnalysis?.warmth,
+    lastWarmth: lastToneAnalysis?.warmthScore,
   });
 
   return useFallbackMessage(debtorFirstName, startTime);

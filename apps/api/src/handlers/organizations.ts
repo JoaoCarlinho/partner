@@ -51,7 +51,7 @@ router.get('/current', async (req: Request, res: Response, next: NextFunction): 
     }
 
     const organization = await prisma.organization.findUnique({
-      where: { id: req.user.org_id },
+      where: { id: req.user.organizationId },
     });
 
     if (!organization) {
@@ -99,7 +99,7 @@ router.put(
 
       // Get current organization
       const currentOrg = await prisma.organization.findUnique({
-        where: { id: req.user.org_id },
+        where: { id: req.user.organizationId },
       });
 
       if (!currentOrg) {
@@ -116,7 +116,7 @@ router.put(
 
       // Update organization
       const organization = await prisma.organization.update({
-        where: { id: req.user.org_id },
+        where: { id: req.user.organizationId },
         data: {
           ...(name && { name }),
           settings: updatedSettings as object,

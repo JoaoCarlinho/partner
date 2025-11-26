@@ -210,13 +210,14 @@ router.post(
         });
 
         const statusCode = result.errorCode === 'ALREADY_REGISTERED' ? 409 : 400;
-        res.status(statusCode).json(
-          errorResponse(
-            result.errorMessage || 'Verification failed',
-            result.errorCode || 'VERIFICATION_FAILED',
-            result.attemptsRemaining !== undefined ? { attemptsRemaining: result.attemptsRemaining } : undefined
-          )
+        const response = errorResponse(
+          result.errorMessage || 'Verification failed',
+          result.errorCode || 'VERIFICATION_FAILED'
         );
+        if (result.attemptsRemaining !== undefined) {
+          (response as { attemptsRemaining?: number }).attemptsRemaining = result.attemptsRemaining;
+        }
+        res.status(statusCode).json(response);
       }
     } catch (error) {
       logger.error('Identity verification error', {

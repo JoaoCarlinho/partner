@@ -1,9 +1,28 @@
 /**
  * Compliance API Handlers
- * Endpoints for compliance tracking, flags, and audit export
+ * Endpoints for FDCPA compliance validation and disclosure generation
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import { successResponse } from '../lib/response.js';
+import { authenticate } from '../middleware/authenticate.js';
+import { authorize } from '../middleware/authorize.js';
+import { tenantContext } from '../middleware/tenantContext.js';
+import { validate } from '../middleware/validate.js';
+import { logAuditEvent } from '../services/audit/auditLogger.js';
+import { AuditAction } from '@steno/shared';
+import {
+  complianceValidateSchema,
+  disclosureGenerateSchema,
+} from '@steno/shared';
+import {
+  validateDemandLetter,
+  getAvailableRules,
+} from '../services/compliance/fdcpaValidator.js';
+import {
+  getRequiredDisclosures,
+  generateCompleteDisclosure,
+} from '../services/compliance/disclosureGenerator.js';
 import {
   getCommunicationLogs,
   getComplianceFlags,
@@ -11,19 +30,106 @@ import {
   resolveComplianceFlag,
   exportComplianceData,
   performPreSendChecks,
-} from '../services/compliance/complianceLogger';
-import { checkFrequencyCompliance, getFrequencyStatus } from '../services/compliance/frequencyTracker';
-import { isWithinAllowedHours, getRestrictionMessage } from '../services/compliance/timeRestriction';
-import { checkCeaseDesist, registerCeaseDesist, acknowledgeCeaseDesist } from '../services/compliance/ceaseDesist';
-import { FlagSeverity, ComplianceFlag } from '../services/compliance/complianceRules';
+  CommunicationDirection,
+} from '../services/compliance/complianceLogger.js';
+import { checkFrequencyCompliance, getFrequencyStatus } from '../services/compliance/frequencyTracker.js';
+import { isWithinAllowedHours, getRestrictionMessage } from '../services/compliance/timeRestriction.js';
+import { checkCeaseDesist, registerCeaseDesist, acknowledgeCeaseDesist } from '../services/compliance/ceaseDesist.js';
+import { FlagSeverity, ComplianceFlag } from '../services/compliance/complianceRules.js';
 
 const router = Router();
+
+// All routes require authentication and tenant context
+router.use(authenticate);
+router.use(tenantContext);
+
+/**
+ * POST /api/v1/compliance/validate
+ * Validate letter content against FDCPA requirements
+ */
+router.post(
+  '/validate',
+  authorize('demands:create'),
+  validate({ body: complianceValidateSchema }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { content, state, debtDetails } = req.body;
+
+      const result = validateDemandLetter(content, {
+        state,
+        debtDetails,
+      });
+
+      // Audit log compliance check
+      logAuditEvent(req, {
+        action: AuditAction.DEMAND_CREATED,
+        metadata: {
+          state,
+          isCompliant: result.isCompliant,
+          score: result.score,
+          missingCount: result.missingRequirements.length,
+        },
+      });
+
+      successResponse(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/compliance/rules
+ * Get list of all available compliance rules
+ */
+router.get(
+  '/rules',
+  authorize('demands:view'),
+  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const rules = getAvailableRules();
+      successResponse(res, { rules });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/compliance/disclosures
+ * Generate required disclosure blocks for a letter
+ */
+router.post(
+  '/disclosures',
+  authorize('demands:create'),
+  validate({ body: disclosureGenerateSchema }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { state, debtDetails, blocks } = req.body;
+
+      const context = { state, debtDetails };
+      let disclosures = getRequiredDisclosures(context);
+
+      // Filter to specific blocks if requested
+      if (blocks && blocks.length > 0) {
+        disclosures = disclosures.filter((d) => blocks.includes(d.id));
+      }
+
+      successResponse(res, {
+        disclosures,
+        completeText: generateCompleteDisclosure(context),
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 /**
  * GET /api/v1/compliance/flags
  * List compliance flags with filters
  */
-router.get('/flags', (req: Request, res: Response) => {
+router.get('/flags', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { caseId, resolved, severity, flagType, page = '1', limit = '20' } = req.query;
 
@@ -40,9 +146,8 @@ router.get('/flags', (req: Request, res: Response) => {
     const start = (pageNum - 1) * limitNum;
     const paginatedFlags = flags.slice(start, start + limitNum);
 
-    return res.json({
-      success: true,
-      data: paginatedFlags,
+    successResponse(res, paginatedFlags, 200);
+    res.json({
       meta: {
         total: flags.length,
         page: pageNum,
@@ -51,11 +156,7 @@ router.get('/flags', (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Get compliance flags error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to get compliance flags',
-    });
+    next(error);
   }
 });
 
@@ -63,37 +164,36 @@ router.get('/flags', (req: Request, res: Response) => {
  * PUT /api/v1/compliance/flags/:flagId/resolve
  * Resolve a compliance flag
  */
-router.put('/flags/:flagId/resolve', (req: Request, res: Response) => {
+router.put('/flags/:flagId/resolve', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { flagId } = req.params;
     const { resolutionNotes, resolvedBy } = req.body;
 
     if (!resolutionNotes) {
-      return res.status(400).json({
-        success: false,
-        error: 'Resolution notes are required',
+      res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Resolution notes are required',
+        },
       });
+      return;
     }
 
     const resolved = resolveComplianceFlag(flagId, resolutionNotes, resolvedBy || 'system');
 
     if (!resolved) {
-      return res.status(404).json({
-        success: false,
-        error: 'Flag not found',
+      res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Flag not found',
+        },
       });
+      return;
     }
 
-    return res.json({
-      success: true,
-      data: resolved,
-    });
+    successResponse(res, resolved);
   } catch (error) {
-    console.error('Resolve flag error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to resolve flag',
-    });
+    next(error);
   }
 });
 
@@ -101,7 +201,7 @@ router.put('/flags/:flagId/resolve', (req: Request, res: Response) => {
  * GET /api/v1/compliance/export
  * Export compliance data for audit
  */
-router.get('/export', (req: Request, res: Response) => {
+router.get('/export', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { caseId, startDate, endDate, includeFlags = 'true', format = 'json' } = req.query;
 
@@ -131,35 +231,33 @@ router.get('/export', (req: Request, res: Response) => {
 
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename=compliance-export-${Date.now()}.csv`);
-      return res.send(csvLines.join('\n'));
+      res.send(csvLines.join('\n'));
+      return;
     }
 
-    return res.json({
-      success: true,
-      data: exportData,
-    });
+    successResponse(res, exportData);
   } catch (error) {
-    console.error('Export compliance data error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to export compliance data',
-    });
+    next(error);
   }
 });
 
 /**
- * GET /api/v1/cases/:caseId/communication-log
+ * GET /api/v1/compliance/cases/:caseId/communication-log
  * Get communication log for a case
  */
-router.get('/cases/:caseId/communication-log', (req: Request, res: Response) => {
+router.get('/cases/:caseId/communication-log', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { caseId } = req.params;
     const { startDate, endDate, direction, compliantOnly, page = '1', limit = '50' } = req.query;
 
+    const directionFilter = direction === 'inbound' || direction === 'outbound'
+      ? direction as CommunicationDirection
+      : undefined;
+
     const logs = getCommunicationLogs(caseId, {
       startDate: startDate ? new Date(startDate as string) : undefined,
       endDate: endDate ? new Date(endDate as string) : undefined,
-      direction: direction as 'inbound' | 'outbound' | undefined,
+      direction: directionFilter,
       compliantOnly: compliantOnly === 'true' ? true : compliantOnly === 'false' ? false : undefined,
     });
 
@@ -169,39 +267,29 @@ router.get('/cases/:caseId/communication-log', (req: Request, res: Response) => 
     const start = (pageNum - 1) * limitNum;
     const paginatedLogs = logs.slice(start, start + limitNum);
 
-    return res.json({
-      success: true,
-      data: paginatedLogs,
-      meta: {
-        total: logs.length,
-        page: pageNum,
-        limit: limitNum,
-        totalPages: Math.ceil(logs.length / limitNum),
-      },
-    });
+    successResponse(res, paginatedLogs, 200);
   } catch (error) {
-    console.error('Get communication log error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to get communication log',
-    });
+    next(error);
   }
 });
 
 /**
- * GET /api/v1/cases/:caseId/compliance-status
+ * GET /api/v1/compliance/cases/:caseId/status
  * Get current compliance status for a case
  */
-router.get('/cases/:caseId/compliance-status', (req: Request, res: Response) => {
+router.get('/cases/:caseId/status', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { caseId } = req.params;
     const { debtorId } = req.query;
 
     if (!debtorId) {
-      return res.status(400).json({
-        success: false,
-        error: 'debtorId query parameter is required',
+      res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'debtorId query parameter is required',
+        },
       });
+      return;
     }
 
     // Get frequency status
@@ -220,67 +308,56 @@ router.get('/cases/:caseId/compliance-status', (req: Request, res: Response) => 
     const allFlags = getComplianceFlags({ caseId, severity: FlagSeverity.VIOLATION });
     const lastViolation = allFlags.length > 0 ? allFlags[0].createdAt.toISOString() : null;
 
-    return res.json({
-      success: true,
-      data: {
-        frequencyUsed: frequencyResult.used,
-        frequencyLimit: frequencyResult.limit,
-        frequencyRemaining: frequencyResult.remaining,
-        frequencyWarning: frequencyResult.warningThreshold,
-        timeRestricted: !timeResult.allowed,
-        timeRestrictionMessage: !timeResult.allowed ? getRestrictionMessage(debtorId as string) : null,
-        nextAllowedTime: timeResult.nextAllowedTime?.toISOString() || null,
-        ceaseDesistActive: ceaseDesistResult.active,
-        activeFlags: flags.length,
-        lastViolation,
-        canSendMessage: performPreSendChecks(caseId, debtorId as string, '').allowed,
-      },
+    successResponse(res, {
+      frequencyUsed: frequencyResult.used,
+      frequencyLimit: frequencyResult.limit,
+      frequencyRemaining: frequencyResult.remaining,
+      frequencyWarning: frequencyResult.warningThreshold,
+      timeRestricted: !timeResult.allowed,
+      timeRestrictionMessage: !timeResult.allowed ? getRestrictionMessage(debtorId as string) : null,
+      nextAllowedTime: timeResult.nextAllowedTime?.toISOString() || null,
+      ceaseDesistActive: ceaseDesistResult.active,
+      activeFlags: flags.length,
+      lastViolation,
+      canSendMessage: performPreSendChecks(caseId, debtorId as string, '').allowed,
     });
   } catch (error) {
-    console.error('Get compliance status error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to get compliance status',
-    });
+    next(error);
   }
 });
 
 /**
- * POST /api/v1/cases/:caseId/cease-desist
+ * POST /api/v1/compliance/cases/:caseId/cease-desist
  * Register a cease and desist request
  */
-router.post('/cases/:caseId/cease-desist', (req: Request, res: Response) => {
+router.post('/cases/:caseId/cease-desist', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { caseId } = req.params;
     const { debtorId, requestMethod, notes } = req.body;
 
     if (!debtorId || !requestMethod) {
-      return res.status(400).json({
-        success: false,
-        error: 'debtorId and requestMethod are required',
+      res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'debtorId and requestMethod are required',
+        },
       });
+      return;
     }
 
     const record = registerCeaseDesist(caseId, debtorId, requestMethod, notes);
 
-    return res.json({
-      success: true,
-      data: record,
-    });
+    successResponse(res, record, 201);
   } catch (error) {
-    console.error('Register cease desist error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to register cease and desist',
-    });
+    next(error);
   }
 });
 
 /**
- * POST /api/v1/cases/:caseId/cease-desist/acknowledge
+ * POST /api/v1/compliance/cases/:caseId/cease-desist/acknowledge
  * Acknowledge a cease and desist request
  */
-router.post('/cases/:caseId/cease-desist/acknowledge', (req: Request, res: Response) => {
+router.post('/cases/:caseId/cease-desist/acknowledge', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { caseId } = req.params;
     const { acknowledgedBy } = req.body;
@@ -288,22 +365,18 @@ router.post('/cases/:caseId/cease-desist/acknowledge', (req: Request, res: Respo
     const record = acknowledgeCeaseDesist(caseId, acknowledgedBy || 'system');
 
     if (!record) {
-      return res.status(404).json({
-        success: false,
-        error: 'No cease and desist found for this case',
+      res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'No cease and desist found for this case',
+        },
       });
+      return;
     }
 
-    return res.json({
-      success: true,
-      data: record,
-    });
+    successResponse(res, record);
   } catch (error) {
-    console.error('Acknowledge cease desist error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to acknowledge cease and desist',
-    });
+    next(error);
   }
 });
 
@@ -311,34 +384,30 @@ router.post('/cases/:caseId/cease-desist/acknowledge', (req: Request, res: Respo
  * POST /api/v1/compliance/check-before-send
  * Pre-send compliance check
  */
-router.post('/check-before-send', (req: Request, res: Response) => {
+router.post('/check-before-send', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { caseId, debtorId, creditorId } = req.body;
 
     if (!caseId || !debtorId) {
-      return res.status(400).json({
-        success: false,
-        error: 'caseId and debtorId are required',
+      res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'caseId and debtorId are required',
+        },
       });
+      return;
     }
 
     const result = performPreSendChecks(caseId, debtorId, creditorId || '');
 
-    return res.json({
-      success: true,
-      data: {
-        allowed: result.allowed,
-        issues: result.issues,
-        warnings: result.warnings,
-        blockReason: result.blockReason,
-      },
+    successResponse(res, {
+      allowed: result.allowed,
+      issues: result.issues,
+      warnings: result.warnings,
+      blockReason: result.blockReason,
     });
   } catch (error) {
-    console.error('Pre-send check error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to perform pre-send check',
-    });
+    next(error);
   }
 });
 
@@ -346,16 +415,14 @@ router.post('/check-before-send', (req: Request, res: Response) => {
  * GET /api/v1/compliance/summary
  * Get overall compliance summary
  */
-router.get('/summary', (req: Request, res: Response) => {
+router.get('/summary', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { caseId } = req.query;
 
     if (caseId) {
       const summary = getComplianceSummary(caseId as string);
-      return res.json({
-        success: true,
-        data: summary,
-      });
+      successResponse(res, summary);
+      return;
     }
 
     // Return aggregate summary across all cases
@@ -363,133 +430,15 @@ router.get('/summary', (req: Request, res: Response) => {
     const unresolvedFlags = allFlags.filter((f) => !f.resolved);
     const violations = allFlags.filter((f) => f.severity === FlagSeverity.VIOLATION);
 
-    return res.json({
-      success: true,
-      data: {
-        totalFlags: allFlags.length,
-        unresolvedFlags: unresolvedFlags.length,
-        violations: violations.length,
-        recentViolations: violations.slice(0, 5),
-      },
+    successResponse(res, {
+      totalFlags: allFlags.length,
+      unresolvedFlags: unresolvedFlags.length,
+      violations: violations.length,
+      recentViolations: violations.slice(0, 5),
     });
   } catch (error) {
-    console.error('Get summary error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to get compliance summary',
-    });
+    next(error);
   }
 });
-import { Router, Request, Response, NextFunction } from 'express';
-import { successResponse } from '../lib/response.js';
-import { authenticate } from '../middleware/authenticate.js';
-import { authorize } from '../middleware/authorize.js';
-import { tenantContext } from '../middleware/tenantContext.js';
-import { validate } from '../middleware/validate.js';
-import { logAuditEvent } from '../services/audit/auditLogger.js';
-import { AuditAction } from '@steno/shared';
-import {
-  complianceValidateSchema,
-  disclosureGenerateSchema,
-} from '@steno/shared';
-import {
-  validateDemandLetter,
-  getAvailableRules,
-} from '../services/compliance/fdcpaValidator.js';
-import {
-  getRequiredDisclosures,
-  generateCompleteDisclosure,
-} from '../services/compliance/disclosureGenerator.js';
-
-const router = Router();
-
-// All routes require authentication and tenant context
-router.use(authenticate);
-router.use(tenantContext);
-
-/**
- * POST /api/v1/compliance/validate
- * Validate letter content against FDCPA requirements
- */
-router.post(
-  '/validate',
-  authorize('demands:create'),
-  validate({ body: complianceValidateSchema }),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { content, state, debtDetails } = req.body;
-
-      const result = validateDemandLetter(content, {
-        state,
-        debtDetails,
-      });
-
-      // Audit log compliance check
-      logAuditEvent(req, {
-        action: AuditAction.DEMAND_CREATED, // Using existing action, could add COMPLIANCE_CHECK
-        entityType: 'compliance_check',
-        metadata: {
-          state,
-          isCompliant: result.isCompliant,
-          score: result.score,
-          missingCount: result.missingRequirements.length,
-        },
-      });
-
-      res.json(successResponse(result));
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
- * GET /api/v1/compliance/rules
- * Get list of all available compliance rules
- */
-router.get(
-  '/rules',
-  authorize('demands:view'),
-  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const rules = getAvailableRules();
-      res.json(successResponse({ rules }));
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
- * POST /api/v1/compliance/disclosures
- * Generate required disclosure blocks for a letter
- */
-router.post(
-  '/disclosures',
-  authorize('demands:create'),
-  validate({ body: disclosureGenerateSchema }),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { state, debtDetails, blocks } = req.body;
-
-      const context = { state, debtDetails };
-      let disclosures = getRequiredDisclosures(context);
-
-      // Filter to specific blocks if requested
-      if (blocks && blocks.length > 0) {
-        disclosures = disclosures.filter((d) => blocks.includes(d.id));
-      }
-
-      res.json(
-        successResponse({
-          disclosures,
-          completeText: generateCompleteDisclosure(context),
-        })
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
-);
 
 export default router;

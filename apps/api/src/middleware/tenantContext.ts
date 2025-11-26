@@ -40,8 +40,8 @@ export function tenantContext(req: Request, _res: Response, next: NextFunction):
   }
 
   const context: TenantContext = {
-    organizationId: req.user.org_id,
-    userId: req.user.sub,
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
   };
 
   // Run the rest of the request in the tenant context

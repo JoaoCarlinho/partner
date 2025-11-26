@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { Prisma } from '@prisma/client';
 import { successResponse } from '../lib/response.js';
 import { Errors } from '../lib/errors.js';
 import { authenticate } from '../middleware/authenticate.js';
@@ -81,19 +82,16 @@ router.post(
       const fdcpaValidation = validateFdcpaVariables(content);
 
       if (!fdcpaValidation.valid) {
-        throw Errors.validation('Template missing required FDCPA variables', [
-          {
-            path: ['content'],
-            message: `Missing required variables: ${fdcpaValidation.missing.join(', ')}`,
-          },
-        ]);
+        throw Errors.validation('Template missing required FDCPA variables', {
+          content: [`Missing required variables: ${fdcpaValidation.missing.join(', ')}`],
+        });
       }
 
       // Check for duplicate template name in organization
       const existing = await prisma.template.findUnique({
         where: {
           organizationId_name: {
-            organizationId: req.user.org_id,
+            organizationId: req.user.organizationId,
             name,
           },
         },
@@ -105,20 +103,20 @@ router.post(
 
       const template = await prisma.template.create({
         data: {
-          organizationId: req.user.org_id,
+          organizationId: req.user.organizationId,
           name,
           description: description || null,
           content,
           variables,
-          createdBy: req.user.sub,
+          createdBy: req.user.id,
         },
       });
 
       // Audit log
       logAuditEvent(req, {
         action: AuditAction.TEMPLATE_CREATED,
-        entityType: 'template',
-        entityId: template.id,
+        resourceType: 'Template',
+        resourceId: template.id,
         metadata: { name, variableCount: variables.length },
       });
 
@@ -143,13 +141,14 @@ router.get(
         throw Errors.unauthorized('Authentication required');
       }
 
-      const { cursor, limit, isActive, search, createdBy } = req.query as {
+      const { cursor, limit: limitStr, isActive, search, createdBy } = req.query as {
         cursor?: string;
-        limit: number;
-        isActive?: boolean;
+        limit?: string;
+        isActive?: string;
         search?: string;
         createdBy?: string;
       };
+      const limit = parseInt(limitStr || '50', 10);
 
       // Build where clause
       const where: {
@@ -158,11 +157,11 @@ router.get(
         createdBy?: string;
         name?: { contains: string; mode: 'insensitive' };
       } = {
-        organizationId: req.user.org_id,
+        organizationId: req.user.organizationId,
       };
 
       if (isActive !== undefined) {
-        where.isActive = isActive;
+        where.isActive = isActive === 'true';
       }
 
       if (createdBy) {
@@ -223,7 +222,7 @@ router.get(
       const template = await prisma.template.findFirst({
         where: {
           id: templateId,
-          organizationId: req.user.org_id,
+          organizationId: req.user.organizationId,
         },
       });
 
@@ -259,7 +258,7 @@ router.put(
       const current = await prisma.template.findFirst({
         where: {
           id: templateId,
-          organizationId: req.user.org_id,
+          organizationId: req.user.organizationId,
         },
       });
 
@@ -272,7 +271,7 @@ router.put(
         const existing = await prisma.template.findUnique({
           where: {
             organizationId_name: {
-              organizationId: req.user.org_id,
+              organizationId: req.user.organizationId,
               name,
             },
           },
@@ -293,12 +292,9 @@ router.put(
         const fdcpaValidation = validateFdcpaVariables(content);
 
         if (!fdcpaValidation.valid) {
-          throw Errors.validation('Template missing required FDCPA variables', [
-            {
-              path: ['content'],
-              message: `Missing required variables: ${fdcpaValidation.missing.join(', ')}`,
-            },
-          ]);
+          throw Errors.validation('Template missing required FDCPA variables', {
+            content: [`Missing required variables: ${fdcpaValidation.missing.join(', ')}`],
+          });
         }
       }
 
@@ -309,7 +305,7 @@ router.put(
             templateId: current.id,
             version: current.version,
             content: current.content,
-            variables: current.variables,
+            variables: current.variables as Prisma.InputJsonValue,
           },
         });
       }
@@ -330,8 +326,8 @@ router.put(
       // Audit log
       logAuditEvent(req, {
         action: AuditAction.TEMPLATE_UPDATED,
-        entityType: 'template',
-        entityId: updated.id,
+        resourceType: 'Template',
+        resourceId: updated.id,
         metadata: {
           changes: {
             name: name !== current.name,
@@ -368,7 +364,7 @@ router.delete(
       const template = await prisma.template.findFirst({
         where: {
           id: templateId,
-          organizationId: req.user.org_id,
+          organizationId: req.user.organizationId,
         },
       });
 
@@ -385,8 +381,8 @@ router.delete(
       // Audit log
       logAuditEvent(req, {
         action: AuditAction.TEMPLATE_DELETED,
-        entityType: 'template',
-        entityId: templateId,
+        resourceType: 'Template',
+        resourceId: templateId,
         metadata: { name: template.name },
       });
 
@@ -417,7 +413,7 @@ router.get(
       const template = await prisma.template.findFirst({
         where: {
           id: templateId,
-          organizationId: req.user.org_id,
+          organizationId: req.user.organizationId,
         },
       });
 
@@ -481,7 +477,7 @@ router.post(
       const template = await prisma.template.findFirst({
         where: {
           id: templateId,
-          organizationId: req.user.org_id,
+          organizationId: req.user.organizationId,
         },
       });
 
@@ -509,7 +505,7 @@ router.post(
           templateId: template.id,
           version: template.version,
           content: template.content,
-          variables: template.variables,
+          variables: template.variables as Prisma.InputJsonValue,
         },
       });
 
@@ -518,7 +514,7 @@ router.post(
         where: { id: templateId },
         data: {
           content: versionToRestore.content,
-          variables: versionToRestore.variables,
+          variables: versionToRestore.variables as Prisma.InputJsonValue,
           version: template.version + 1,
         },
       });
@@ -526,8 +522,8 @@ router.post(
       // Audit log
       logAuditEvent(req, {
         action: AuditAction.TEMPLATE_UPDATED,
-        entityType: 'template',
-        entityId: updated.id,
+        resourceType: 'Template',
+        resourceId: updated.id,
         metadata: {
           action: 'restore',
           restoredVersion: versionNumber,
@@ -562,7 +558,7 @@ router.post(
       const template = await prisma.template.findFirst({
         where: {
           id: templateId,
-          organizationId: req.user.org_id,
+          organizationId: req.user.organizationId,
         },
       });
 

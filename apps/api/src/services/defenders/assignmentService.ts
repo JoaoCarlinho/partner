@@ -96,10 +96,11 @@ export async function createAssignment(
   // Auto-assign if no defender specified
   let defenderId = request.defenderId;
   if (!defenderId) {
-    defenderId = await findAvailableDefender();
-    if (!defenderId) {
+    const availableDefender = await findAvailableDefender();
+    if (!availableDefender) {
       throw new Error('No defenders available');
     }
+    defenderId = availableDefender;
   }
 
   // Check defender exists and has capacity

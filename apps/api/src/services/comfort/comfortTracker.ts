@@ -81,8 +81,9 @@ export async function processInteraction(
     // Check for escalation triggers first
     escalation = checkEscalationTriggers(interaction.content);
 
-    // Analyze sentiment
-    const sentiment = await analyzeSentiment(interaction.content, interaction.type);
+    // Analyze sentiment - convert type to AnalysisContext
+    const contextType = interaction.type === 'message' ? 'message' : 'assessment';
+    const sentiment = await analyzeSentiment(interaction.content, contextType);
 
     // Add to history (keep last 20)
     assessment.sentimentHistory = [...assessment.sentimentHistory.slice(-19), sentiment];

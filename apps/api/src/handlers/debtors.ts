@@ -170,6 +170,7 @@ router.post(
               id: true,
               creditorName: true,
               organizationId: true,
+              metadata: true,
             },
           },
         },

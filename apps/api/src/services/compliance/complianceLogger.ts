@@ -10,6 +10,9 @@ import {
   CommunicationChannel,
   CommunicationType,
 } from './complianceRules';
+
+// Re-export types for use by handlers
+export { CommunicationDirection };
 import { checkFrequencyCompliance, recordCommunication } from './frequencyTracker';
 import { isWithinAllowedHours } from './timeRestriction';
 import { checkCeaseDesist } from './ceaseDesist';

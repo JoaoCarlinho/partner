@@ -32,6 +32,7 @@ import {
 import { generateLetterPDF } from '../services/pdf/pdfGenerator.js';
 import { logger } from '../middleware/logger.js';
 import { prisma } from '../lib/prisma.js';
+import { LetterStatus, CaseStatus } from '@prisma/client';
 import { logAuditEvent } from '../services/audit/auditLogger.js';
 import { z } from 'zod';
 
@@ -271,7 +272,7 @@ router.get(
       const where = {
         organizationId,
         ...(caseId && { caseId: caseId as string }),
-        ...(status && { status: status as string }),
+        ...(status && { status: status as LetterStatus }),
       };
 
       const [demandLetters, total] = await Promise.all([
@@ -462,7 +463,7 @@ router.get(
 
       const where = {
         organizationId,
-        ...(status && { status: status as string }),
+        ...(status && { status: status as CaseStatus }),
       };
 
       const [cases, total] = await Promise.all([
@@ -940,11 +941,6 @@ router.get(
               debtAmount: true,
             },
           },
-          organization: {
-            select: {
-              name: true,
-            },
-          },
         },
       });
 
@@ -952,6 +948,12 @@ router.get(
         res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
         return;
       }
+
+      // Get organization name for letterhead
+      const organization = await prisma.organization.findUnique({
+        where: { id: demandLetter.organizationId },
+        select: { name: true },
+      });
 
       // Get approval info if approved
       let approval;
@@ -963,17 +965,18 @@ router.get(
       const pdfBuffer = await generateLetterPDF({
         content: demandLetter.content,
         metadata: {
-          caseReference: `${demandLetter.case.debtorName} v. ${demandLetter.case.creditorName}`,
-          createdAt: demandLetter.createdAt.toISOString(),
-          status: demandLetter.status,
+          reference: `${demandLetter.case.debtorName} v. ${demandLetter.case.creditorName}`,
+          date: demandLetter.createdAt.toISOString(),
+          caseId: demandLetter.caseId,
         },
         letterhead: {
-          organizationName: demandLetter.organization.name,
+          firmName: organization?.name || 'Unknown Firm',
         },
         approval: approval ? {
           approverName: approval.actor.email,
+          approverEmail: approval.actor.email,
           approvedAt: approval.createdAt.toISOString(),
-          signatureHash: (approval.signatureData as { signatureHash?: string })?.signatureHash,
+          signature: (approval.signatureData as { signatureHash?: string })?.signatureHash,
         } : undefined,
       });
 

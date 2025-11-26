@@ -21,8 +21,8 @@ export function logAuditEvent(req: Request, params: AuditEventParams): void {
   const context = getTenantContextOrNull();
 
   // Get user and org from context or overrides
-  const userId = params.userId ?? context?.userId ?? req.user?.sub ?? null;
-  const organizationId = params.organizationId ?? context?.organizationId ?? req.user?.org_id ?? null;
+  const userId = params.userId ?? context?.userId ?? req.user?.id ?? null;
+  const organizationId = params.organizationId ?? context?.organizationId ?? req.user?.organizationId ?? null;
 
   // Skip logging if we don't have an organization context
   // (shouldn't happen in normal flow, but prevents errors)
@@ -117,7 +117,7 @@ export function logRoleChange(
     metadata: {
       previousRole,
       newRole,
-      changedBy: req.user?.sub,
+      changedBy: req.user?.id,
     },
   });
 }

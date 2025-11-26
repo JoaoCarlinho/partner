@@ -57,6 +57,13 @@ const THRESHOLDS = {
 };
 
 /**
+ * Get affordability thresholds
+ */
+export function getAffordabilityThresholds() {
+  return { ...THRESHOLDS };
+}
+
+/**
  * Calculate affordability for a payment plan
  */
 export function calculateAffordability(

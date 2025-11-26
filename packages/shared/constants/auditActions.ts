@@ -77,6 +77,12 @@ export enum AuditAction {
 
   // Audit log access
   AUDIT_LOGS_ACCESSED = 'AUDIT_LOGS_ACCESSED',
+
+  // Debtor dashboard
+  DEBTOR_DASHBOARD_VIEWED = 'DEBTOR_DASHBOARD_VIEWED',
+
+  // Paraphrase events
+  DEMAND_LETTER_PARAPHRASED = 'DEMAND_LETTER_PARAPHRASED',
 }
 
 /**

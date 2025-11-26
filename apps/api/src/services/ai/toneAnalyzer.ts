@@ -1,20 +1,34 @@
 /**
- * Tone Analysis Service
- * Analyzes message tone before delivery using AI
+ * Tone Analyzer Service
+ * AI-powered tone analysis for warmth validation and problematic content detection
  */
 
-import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+import {
+  BedrockRuntimeClient,
+  InvokeModelCommand,
+} from '@aws-sdk/client-bedrock-runtime';
+import { logger } from '../../middleware/logger.js';
 import {
   TONE_ANALYSIS_SYSTEM_PROMPT,
-  TONE_ANALYSIS_USER_PROMPT,
+  buildToneAnalysisPrompt,
+  BLOCKED_PHRASES,
   WARMTH_THRESHOLDS,
   getToneCategory,
   getRecommendation,
   HOSTILE_PATTERNS,
   FDCPA_VIOLATION_PATTERNS,
-} from './prompts/toneAnalysis';
+} from './prompts/toneAnalysis.js';
 
-// Tone analysis result interface
+// Use Haiku for fast tone analysis (smaller model = lower latency)
+const TONE_MODEL_ID = process.env.BEDROCK_HAIKU_MODEL_ID || 'anthropic.claude-3-haiku-20240307-v1:0';
+const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+
+// Warmth threshold for passing
+const WARMTH_THRESHOLD = 80;
+
+/**
+ * Tone analysis result
+ */
 export interface ToneAnalysisResult {
   warmthScore: number;          // 0-100
   hostilityIndicators: string[];
@@ -25,15 +39,20 @@ export interface ToneAnalysisResult {
   concerns: string[];
   toneCategory: string;
   analysisTime: number;         // milliseconds
+  passed: boolean;
 }
 
 // Sender roles for context
 export type SenderRole = 'ATTORNEY' | 'PARALEGAL' | 'DEBTOR' | 'PUBLIC_DEFENDER';
 
-// Bedrock client
-const bedrockClient = new BedrockRuntimeClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-});
+/**
+ * Initialize Bedrock client
+ */
+function getBedrockClient(): BedrockRuntimeClient {
+  return new BedrockRuntimeClient({
+    region: AWS_REGION,
+  });
+}
 
 /**
  * Analyze message tone using Claude Haiku (fast model)
@@ -49,93 +68,37 @@ export async function analyzeTone(
     return createPassResult(startTime);
   }
 
+  // Quick blocked phrase check first (no AI needed)
+  const blockedPhraseCheck = quickBlockedPhraseCheck(message);
+  if (blockedPhraseCheck.hasBlockedPhrases) {
+    return {
+      warmthScore: 30,
+      hostilityIndicators: [],
+      threateningLanguage: [],
+      fdcpaIssues: [],
+      profanityDetected: [],
+      recommendation: 'suggest_rewrite',
+      concerns: [`Contains blocked phrases: ${blockedPhraseCheck.foundPhrases.join(', ')}`],
+      toneCategory: 'cool',
+      analysisTime: Date.now() - startTime,
+      passed: false,
+    };
+  }
+
   // For very short messages, use quick analysis
   if (message.length < 20) {
     return analyzeQuick(message, startTime);
   }
 
   try {
-    // Build the prompt
-    const userPrompt = TONE_ANALYSIS_USER_PROMPT
-      .replace('{message}', sanitizeForPrompt(message))
-      .replace('{senderRole}', senderRole);
-
-    const payload = {
-      anthropic_version: 'bedrock-2023-05-31',
-      max_tokens: 512,
- * Tone Analyzer Service
- * AI-powered tone analysis for warmth validation and problematic content detection
- */
-
-import {
-  BedrockRuntimeClient,
-  InvokeModelCommand,
-} from '@aws-sdk/client-bedrock-runtime';
-import { logger } from '../../middleware/logger.js';
-import {
-  TONE_ANALYSIS_SYSTEM_PROMPT,
-  buildToneAnalysisPrompt,
-  BLOCKED_PHRASES,
-} from './prompts/toneAnalysis.js';
-
-// Use Haiku for fast tone analysis (smaller model = lower latency)
-const TONE_MODEL_ID = process.env.BEDROCK_HAIKU_MODEL_ID || 'anthropic.claude-3-haiku-20240307-v1:0';
-const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
-
-// Warmth threshold for passing
-const WARMTH_THRESHOLD = 80;
-
-/**
- * Tone analysis result
- */
-export interface ToneAnalysisResult {
-  warmth: number;
-  hostility: string[];
-  pressure: string[];
-  threats: string[];
-  recommendation: 'pass' | 'regenerate' | 'manual_review';
-  reasoning?: string;
-  passed: boolean;
-  latencyMs?: number;
-}
-
-/**
- * Initialize Bedrock client
- */
-function getBedrockClient(): BedrockRuntimeClient {
-  return new BedrockRuntimeClient({
-    region: AWS_REGION,
-  });
-}
-
-/**
- * Analyze the tone of a message
- * Uses Claude Haiku for fast analysis
- */
-export async function analyzeTone(content: string): Promise<ToneAnalysisResult> {
-  const startTime = Date.now();
-
-  // Quick blocked phrase check first (no AI needed)
-  const blockedPhraseCheck = quickBlockedPhraseCheck(content);
-  if (blockedPhraseCheck.hasBlockedPhrases) {
-    return {
-      warmth: 0,
-      hostility: [],
-      pressure: blockedPhraseCheck.foundPhrases,
-      threats: [],
-      recommendation: 'regenerate',
-      reasoning: `Contains blocked phrases: ${blockedPhraseCheck.foundPhrases.join(', ')}`,
-      passed: false,
-      latencyMs: Date.now() - startTime,
-    };
-  }
-
-  try {
     const client = getBedrockClient();
+
+    // Build the prompt
+    const userPrompt = buildToneAnalysisPrompt(sanitizeForPrompt(message), senderRole);
 
     const body = JSON.stringify({
       anthropic_version: 'bedrock-2023-05-31',
-      max_tokens: 1024,
+      max_tokens: 512,
       system: TONE_ANALYSIS_SYSTEM_PROMPT,
       messages: [
         {
@@ -143,18 +106,18 @@ export async function analyzeTone(content: string): Promise<ToneAnalysisResult> 
           content: userPrompt,
         },
       ],
-    };
-
-    const command = new InvokeModelCommand({
-      modelId: 'anthropic.claude-3-haiku-20240307-v1:0', // Fast model for <2s response
-      contentType: 'application/json',
-      accept: 'application/json',
-      body: JSON.stringify(payload),
     });
 
-    const response = await bedrockClient.send(command);
+    const command = new InvokeModelCommand({
+      modelId: TONE_MODEL_ID,
+      contentType: 'application/json',
+      accept: 'application/json',
+      body: Buffer.from(body),
+    });
+
+    const response = await client.send(command);
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-    const responseText = responseBody.content[0]?.text || '';
+    const responseText = responseBody.content?.[0]?.text || '';
 
     // Parse JSON from response
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
@@ -166,10 +129,32 @@ export async function analyzeTone(content: string): Promise<ToneAnalysisResult> 
     // Fallback to local analysis if AI fails to return valid JSON
     return analyzeLocal(message, startTime);
   } catch (error) {
-    console.error('Tone analysis AI failed:', error);
+    logger.error('Tone analysis AI failed:', { error: (error as Error).message });
     // Fallback to local analysis
     return analyzeLocal(message, startTime);
   }
+}
+
+/**
+ * Quick check for blocked phrases without AI
+ */
+function quickBlockedPhraseCheck(content: string): {
+  hasBlockedPhrases: boolean;
+  foundPhrases: string[];
+} {
+  const lowerContent = content.toLowerCase();
+  const foundPhrases: string[] = [];
+
+  for (const phrase of BLOCKED_PHRASES) {
+    if (lowerContent.includes(phrase.toLowerCase())) {
+      foundPhrases.push(phrase);
+    }
+  }
+
+  return {
+    hasBlockedPhrases: foundPhrases.length > 0,
+    foundPhrases,
+  };
 }
 
 /**
@@ -192,6 +177,7 @@ function analyzeQuick(message: string, startTime: number): ToneAnalysisResult {
       concerns: ['Message tone could be improved'],
       toneCategory: 'cool',
       analysisTime: Date.now() - startTime,
+      passed: false,
     };
   }
 
@@ -259,6 +245,7 @@ function analyzeLocal(message: string, startTime: number): ToneAnalysisResult {
     concerns,
     toneCategory: getToneCategory(warmthScore),
     analysisTime: Date.now() - startTime,
+    passed: warmthScore >= WARMTH_THRESHOLD && recommendation === 'pass',
   };
 }
 
@@ -267,7 +254,7 @@ function analyzeLocal(message: string, startTime: number): ToneAnalysisResult {
  */
 function validateAndEnhance(
   parsed: Partial<ToneAnalysisResult>,
-  originalMessage: string,
+  _originalMessage: string,
   startTime: number
 ): ToneAnalysisResult {
   // Ensure all required fields have valid values
@@ -297,6 +284,7 @@ function validateAndEnhance(
     concerns,
     toneCategory: getToneCategory(warmthScore),
     analysisTime: Date.now() - startTime,
+    passed: warmthScore >= WARMTH_THRESHOLD && recommendation === 'pass',
   };
 }
 
@@ -314,6 +302,7 @@ function createPassResult(startTime: number): ToneAnalysisResult {
     concerns: [],
     toneCategory: 'neutral',
     analysisTime: Date.now() - startTime,
+    passed: true,
   };
 }
 
@@ -370,128 +359,6 @@ export function getImprovementSuggestions(analysis: ToneAnalysisResult): string[
   return suggestions;
 }
 
-// Export thresholds for use elsewhere
-export { WARMTH_THRESHOLDS, getToneCategory };
-          content: buildToneAnalysisPrompt(content),
-        },
-      ],
-    });
-
-    const command = new InvokeModelCommand({
-      modelId: TONE_MODEL_ID,
-      contentType: 'application/json',
-      accept: 'application/json',
-      body: Buffer.from(body),
-    });
-
-    const response = await client.send(command);
-    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-    const responseText = responseBody.content?.[0]?.text || '';
-
-    // Parse JSON response
-    const analysis = parseAnalysisResponse(responseText);
-    const latencyMs = Date.now() - startTime;
-
-    logger.info('Tone analysis complete', {
-      warmth: analysis.warmth,
-      recommendation: analysis.recommendation,
-      latencyMs,
-    });
-
-    return {
-      ...analysis,
-      passed: analysis.warmth >= WARMTH_THRESHOLD && analysis.recommendation === 'pass',
-      latencyMs,
-    };
-  } catch (error) {
-    logger.error('Tone analysis failed', {
-      error: (error as Error).message,
-    });
-
-    // Return conservative result on error
-    return {
-      warmth: 0,
-      hostility: [],
-      pressure: [],
-      threats: [],
-      recommendation: 'manual_review',
-      reasoning: 'Analysis failed - requires manual review',
-      passed: false,
-      latencyMs: Date.now() - startTime,
-    };
-  }
-}
-
-/**
- * Quick check for blocked phrases without AI
- */
-function quickBlockedPhraseCheck(content: string): {
-  hasBlockedPhrases: boolean;
-  foundPhrases: string[];
-} {
-  const lowerContent = content.toLowerCase();
-  const foundPhrases: string[] = [];
-
-  for (const phrase of BLOCKED_PHRASES) {
-    if (lowerContent.includes(phrase.toLowerCase())) {
-      foundPhrases.push(phrase);
-    }
-  }
-
-  return {
-    hasBlockedPhrases: foundPhrases.length > 0,
-    foundPhrases,
-  };
-}
-
-/**
- * Parse the AI response into structured format
- */
-function parseAnalysisResponse(responseText: string): Omit<ToneAnalysisResult, 'passed' | 'latencyMs'> {
-  try {
-    // Try to extract JSON from the response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-
-    return {
-      warmth: typeof parsed.warmth === 'number' ? Math.min(100, Math.max(0, parsed.warmth)) : 0,
-      hostility: Array.isArray(parsed.hostility) ? parsed.hostility : [],
-      pressure: Array.isArray(parsed.pressure) ? parsed.pressure : [],
-      threats: Array.isArray(parsed.threats) ? parsed.threats : [],
-      recommendation: validateRecommendation(parsed.recommendation),
-      reasoning: parsed.reasoning || undefined,
-    };
-  } catch (error) {
-    logger.error('Failed to parse tone analysis response', {
-      error: (error as Error).message,
-      responseText: responseText.substring(0, 200),
-    });
-
-    return {
-      warmth: 0,
-      hostility: [],
-      pressure: [],
-      threats: [],
-      recommendation: 'manual_review',
-      reasoning: 'Failed to parse analysis response',
-    };
-  }
-}
-
-/**
- * Validate recommendation value
- */
-function validateRecommendation(value: unknown): 'pass' | 'regenerate' | 'manual_review' {
-  if (value === 'pass' || value === 'regenerate' || value === 'manual_review') {
-    return value;
-  }
-  return 'regenerate';
-}
-
 /**
  * Simple warmth check for pre-approved messages
  * Uses heuristics instead of AI for fallback messages
@@ -532,3 +399,6 @@ export function quickWarmthCheck(content: string): { warmth: number; passed: boo
     passed: score >= WARMTH_THRESHOLD,
   };
 }
+
+// Export thresholds for use elsewhere
+export { WARMTH_THRESHOLDS, getToneCategory };
