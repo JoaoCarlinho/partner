@@ -4,11 +4,14 @@
  */
 
 // Pages
-export { DebtorDashboard } from './pages/DebtorDashboard';
+export { AssessmentPage } from './pages/AssessmentPage';
 
 // Components
 export { AmountOwedCard } from './components/AmountOwedCard';
+export { AssessmentChat } from './components/AssessmentChat';
+export { AssessmentForm } from './components/AssessmentForm';
 export { CreditorInfoCard } from './components/CreditorInfoCard';
+export { DebtorDashboard } from './pages/DebtorDashboard';
 export { TimelineCard } from './components/TimelineCard';
 export { OptionsPanel } from './components/OptionsPanel';
 
