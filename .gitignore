@@ -3,7 +3,7 @@ logs/
 
 
 # process docs
-dev_docs/
+dev_docs_archive/
 
 # macOS files
 .DS_Store
@@ -37,6 +37,7 @@ infra/
 dist/
 .turbo/
 deployment/
+deployment.zip
 
 # Next.js
 .next/
