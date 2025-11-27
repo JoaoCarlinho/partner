@@ -139,8 +139,14 @@ function formatCurrency(amount: number): string {
 /**
  * Format date for display
  */
-function formatDate(dateString: string): string {
+function formatDate(dateString: string | undefined): string {
+  if (!dateString) {
+    return 'Not specified';
+  }
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) {
+    return 'Not specified';
+  }
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: 'long',

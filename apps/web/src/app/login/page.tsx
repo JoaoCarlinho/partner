@@ -33,12 +33,17 @@ export default function LoginPage() {
         throw new Error(response_data.error?.message || response_data.error || 'Login failed');
       }
 
-      // API returns { data: { user, organization }, meta: { csrfToken } }
+      // API returns { data: { user, organization, accessToken }, meta: { csrfToken } }
       const { data, meta } = response_data;
 
       // Store user data for dashboard auth check
       if (data?.user) {
         localStorage.setItem('user', JSON.stringify(data.user));
+      }
+
+      // Store access token for API authentication
+      if (data?.accessToken) {
+        localStorage.setItem('authToken', data.accessToken);
       }
 
       // Store CSRF token if provided

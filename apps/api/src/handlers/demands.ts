@@ -55,6 +55,227 @@ const router = Router();
 // Apply authentication to all routes
 router.use(authenticate);
 
+// ============================================
+// CASE ENDPOINTS - MUST BE BEFORE /:id ROUTES
+// (otherwise /cases matches /:id with id="cases")
+// ============================================
+
+/**
+ * POST /api/v1/demands/cases
+ * Create a new case
+ */
+router.post(
+  '/cases',
+  authorize('cases:create'),
+  validate({ body: createCaseSchema }),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { creditorName, debtAmount, debtorName, debtorEmail, metadata } = req.body;
+      const organizationId = req.user!.organizationId;
+
+      const newCase = await prisma.case.create({
+        data: {
+          organizationId,
+          creditorName,
+          debtAmount,
+          debtorName,
+          debtorEmail,
+          metadata,
+          status: 'ACTIVE',
+        },
+      });
+
+      logAuditEvent(req, {
+        action: AuditAction.CASE_CREATED,
+        resourceType: 'Case',
+        resourceId: newCase.id,
+        metadata: { creditorName },
+      });
+
+      res.status(201).json(successResponse(newCase));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/demands/cases
+ * List cases for organization
+ */
+router.get(
+  '/cases',
+  authorize('cases:read'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const organizationId = req.user!.organizationId;
+      const { status, page = '1', limit = '20' } = req.query;
+
+      const pageNum = Math.max(1, parseInt(page as string, 10));
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10)));
+      const skip = (pageNum - 1) * limitNum;
+
+      const where = {
+        organizationId,
+        ...(status && { status: status as CaseStatus }),
+      };
+
+      const [cases, total] = await Promise.all([
+        prisma.case.findMany({
+          where,
+          skip,
+          take: limitNum,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.case.count({ where }),
+      ]);
+
+      res.json(
+        successResponse({
+          items: cases,
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total,
+            totalPages: Math.ceil(total / limitNum),
+          },
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/demands/cases/:id
+ * Get a case by ID
+ */
+router.get(
+  '/cases/:id',
+  authorize('cases:read'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const organizationId = req.user!.organizationId;
+
+      const caseRecord = await prisma.case.findFirst({
+        where: { id, organizationId },
+        include: {
+          demandLetters: {
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      });
+
+      if (!caseRecord) {
+        res.status(404).json(errorResponse('Case not found', 'NOT_FOUND'));
+        return;
+      }
+
+      res.json(successResponse(caseRecord));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/demands/cases/:id/messages
+ * Get messages for a case
+ */
+router.get(
+  '/cases/:id/messages',
+  authorize('cases:read'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const organizationId = req.user!.organizationId;
+
+      // Verify case belongs to organization
+      const caseRecord = await prisma.case.findFirst({
+        where: { id, organizationId },
+      });
+
+      if (!caseRecord) {
+        res.status(404).json(errorResponse('Case not found', 'NOT_FOUND'));
+        return;
+      }
+
+      const messages = await prisma.message.findMany({
+        where: { caseId: id },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      res.json(successResponse({ items: messages }));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/demands/cases/:id/messages
+ * Create a new message for a case
+ */
+router.post(
+  '/cases/:id/messages',
+  authorize('cases:read'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const { content } = req.body;
+      const userId = req.user!.id;
+      const organizationId = req.user!.organizationId;
+      const userRole = req.user!.role;
+
+      if (!content || typeof content !== 'string' || content.trim().length === 0) {
+        res.status(400).json(errorResponse('Message content is required', 'VALIDATION_ERROR'));
+        return;
+      }
+
+      // Verify case belongs to organization
+      const caseRecord = await prisma.case.findFirst({
+        where: { id, organizationId },
+      });
+
+      if (!caseRecord) {
+        res.status(404).json(errorResponse('Case not found', 'NOT_FOUND'));
+        return;
+      }
+
+      const message = await prisma.message.create({
+        data: {
+          caseId: id,
+          senderId: userId,
+          senderRole: userRole,
+          content: content.trim(),
+        },
+      });
+
+      res.status(201).json(successResponse(message));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/demands/refinement-suggestions
+ * Get common refinement suggestions
+ */
+router.get(
+  '/refinement-suggestions',
+  authorize('demands:read'),
+  async (_req: Request, res: Response): Promise<void> => {
+    res.json(successResponse(COMMON_REFINEMENT_SUGGESTIONS));
+  }
+);
+
+// ============================================
+// DEMAND LETTER ENDPOINTS
+// ============================================
+
 /**
  * POST /api/v1/demands/generate
  * Generate a demand letter using AI
@@ -207,53 +428,6 @@ router.post(
 );
 
 /**
- * GET /api/v1/demands/:id
- * Get a demand letter by ID
- */
-router.get(
-  '/:id',
-  authorize('demands:read'),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { id } = req.params;
-      const organizationId = req.user!.organizationId;
-
-      const demandLetter = await prisma.demandLetter.findFirst({
-        where: {
-          id,
-          organizationId,
-        },
-        include: {
-          template: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          case: {
-            select: {
-              id: true,
-              creditorName: true,
-              debtorName: true,
-              status: true,
-            },
-          },
-        },
-      });
-
-      if (!demandLetter) {
-        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
-        return;
-      }
-
-      res.json(successResponse(demandLetter));
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
  * GET /api/v1/demands
  * List demand letters for organization
  */
@@ -304,6 +478,53 @@ router.get(
           },
         })
       );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/demands/:id
+ * Get a demand letter by ID
+ */
+router.get(
+  '/:id',
+  authorize('demands:read'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const organizationId = req.user!.organizationId;
+
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: {
+          id,
+          organizationId,
+        },
+        include: {
+          template: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          case: {
+            select: {
+              id: true,
+              creditorName: true,
+              debtorName: true,
+              status: true,
+            },
+          },
+        },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      res.json(successResponse(demandLetter));
     } catch (error) {
       next(error);
     }
@@ -400,126 +621,6 @@ router.delete(
       });
 
       res.status(204).send();
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
- * POST /api/v1/demands/cases
- * Create a new case
- */
-router.post(
-  '/cases',
-  authorize('cases:create'),
-  validate({ body: createCaseSchema }),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { creditorName, debtAmount, debtorName, debtorEmail, metadata } = req.body;
-      const organizationId = req.user!.organizationId;
-
-      const newCase = await prisma.case.create({
-        data: {
-          organizationId,
-          creditorName,
-          debtAmount,
-          debtorName,
-          debtorEmail,
-          metadata,
-          status: 'ACTIVE',
-        },
-      });
-
-      logAuditEvent(req, {
-        action: AuditAction.CASE_CREATED,
-        resourceType: 'Case',
-        resourceId: newCase.id,
-        metadata: { creditorName },
-      });
-
-      res.status(201).json(successResponse(newCase));
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
- * GET /api/v1/demands/cases
- * List cases for organization
- */
-router.get(
-  '/cases',
-  authorize('cases:read'),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const organizationId = req.user!.organizationId;
-      const { status, page = '1', limit = '20' } = req.query;
-
-      const pageNum = Math.max(1, parseInt(page as string, 10));
-      const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10)));
-      const skip = (pageNum - 1) * limitNum;
-
-      const where = {
-        organizationId,
-        ...(status && { status: status as CaseStatus }),
-      };
-
-      const [cases, total] = await Promise.all([
-        prisma.case.findMany({
-          where,
-          skip,
-          take: limitNum,
-          orderBy: { createdAt: 'desc' },
-        }),
-        prisma.case.count({ where }),
-      ]);
-
-      res.json(
-        successResponse({
-          items: cases,
-          pagination: {
-            page: pageNum,
-            limit: limitNum,
-            total,
-            totalPages: Math.ceil(total / limitNum),
-          },
-        })
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
- * GET /api/v1/demands/cases/:id
- * Get a case by ID
- */
-router.get(
-  '/cases/:id',
-  authorize('cases:read'),
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { id } = req.params;
-      const organizationId = req.user!.organizationId;
-
-      const caseRecord = await prisma.case.findFirst({
-        where: { id, organizationId },
-        include: {
-          demandLetters: {
-            orderBy: { createdAt: 'desc' },
-          },
-        },
-      });
-
-      if (!caseRecord) {
-        res.status(404).json(errorResponse('Case not found', 'NOT_FOUND'));
-        return;
-      }
-
-      res.json(successResponse(caseRecord));
     } catch (error) {
       next(error);
     }
@@ -899,18 +1000,6 @@ router.get(
     } catch (error) {
       next(error);
     }
-  }
-);
-
-/**
- * GET /api/v1/demands/refinement-suggestions
- * Get common refinement suggestions
- */
-router.get(
-  '/refinement-suggestions',
-  authorize('demands:read'),
-  async (_req: Request, res: Response): Promise<void> => {
-    res.json(successResponse(COMMON_REFINEMENT_SUGGESTIONS));
   }
 );
 

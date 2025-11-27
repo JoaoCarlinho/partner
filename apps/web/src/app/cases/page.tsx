@@ -12,11 +12,10 @@ interface Case {
   referenceNumber: string;
   debtorName: string;
   creditorName: string;
-  originalAmount: number;
-  currentBalance: number;
+  debtAmount: number;
   status: string;
   createdAt: string;
-  lastActivityAt: string;
+  updatedAt: string;
 }
 
 interface User {
@@ -48,6 +47,18 @@ export default function CasesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showNewCaseModal, setShowNewCaseModal] = useState(false);
+
+  // Open modal if ?new=true is in URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('new') === 'true') {
+        setShowNewCaseModal(true);
+        // Clear the query param from URL without reload
+        window.history.replaceState({}, '', '/cases');
+      }
+    }
+  }, []);
   const [newCaseForm, setNewCaseForm] = useState<NewCaseForm>({
     creditorName: '',
     debtorName: '',
@@ -84,13 +95,18 @@ export default function CasesPage() {
 
   const fetchCases = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/v1/cases`, {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${API_URL}/api/v1/demands/cases`, {
         credentials: 'include',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
       });
 
       if (response.ok) {
         const data = await response.json();
-        setCases(data.data || []);
+        // API returns { data: { items: [...], pagination: {...} } }
+        setCases(data.data?.items || []);
       }
     } catch (error) {
       console.error('Failed to fetch cases:', error);
@@ -118,10 +134,12 @@ export default function CasesPage() {
     setCreateError('');
 
     try {
+      const token = localStorage.getItem('authToken');
       const response = await fetch(`${API_URL}/api/v1/demands/cases`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
         },
         credentials: 'include',
         body: JSON.stringify({
@@ -268,7 +286,7 @@ export default function CasesPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-medium text-gray-900">
-                        ${(c.currentBalance || c.originalAmount || 0).toLocaleString()}
+                        ${Number(c.debtAmount || 0).toLocaleString()}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -281,8 +299,8 @@ export default function CasesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {c.lastActivityAt
-                        ? new Date(c.lastActivityAt).toLocaleDateString()
+                      {c.updatedAt
+                        ? new Date(c.updatedAt).toLocaleDateString()
                         : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">

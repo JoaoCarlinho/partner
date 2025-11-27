@@ -26,7 +26,7 @@ export const caseDetailsSchema = z.object({
   debtOriginDate: z.string().regex(
     /^\d{4}-\d{2}-\d{2}$/,
     'Date must be in YYYY-MM-DD format'
-  ),
+  ).optional(),
   accountNumber: z.string().optional(),
   stateJurisdiction: z
     .string()
@@ -43,7 +43,7 @@ export const caseDetailsSchema = z.object({
  * Letter generation request schema
  */
 export const generateLetterSchema = z.object({
-  templateId: z.string().uuid('Invalid template ID'),
+  templateId: z.string().uuid('Invalid template ID').optional(),
   caseId: z.string().uuid('Invalid case ID'),
   caseDetails: caseDetailsSchema,
   options: z

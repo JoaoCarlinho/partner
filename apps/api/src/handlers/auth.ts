@@ -354,6 +354,7 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
     setCsrfCookie(csrfToken, res);
 
     // Return user data (excluding sensitive fields)
+    // Include accessToken for clients that can't use cookies (cross-origin)
     sendSuccess(res, {
       user: {
         id: user.id,
@@ -365,6 +366,7 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
         id: user.organization.id,
         name: user.organization.name,
       },
+      accessToken,
     }, {
       csrfToken,
     });

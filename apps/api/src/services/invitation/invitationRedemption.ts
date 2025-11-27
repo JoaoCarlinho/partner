@@ -5,7 +5,7 @@
 
 import { prisma } from '../../lib/prisma.js';
 import { logger } from '../../middleware/logger.js';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
 import { validateInvitationToken, redeemInvitation } from './invitationService.js';

@@ -10,10 +10,11 @@ import {
 } from '@aws-sdk/client-bedrock-runtime';
 import { logger } from '../../middleware/logger.js';
 
-// Model configurations
+// Model configurations - using cross-region inference profile IDs
+// See: https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html
 const MODELS = {
-  CLAUDE_SONNET: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-  CLAUDE_HAIKU: 'anthropic.claude-3-5-haiku-20241022-v1:0',
+  CLAUDE_SONNET: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+  CLAUDE_HAIKU: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
 } as const;
 
 // Default model for letter generation

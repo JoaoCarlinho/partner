@@ -62,7 +62,7 @@ app.get('/health', async (_req, res) => {
 // 5. Rate limiting (after health check)
 app.use('/api', rateLimit());
 
-// API Routes
+// API Routes - full paths
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/organizations', organizationsRouter);
@@ -70,8 +70,12 @@ app.use('/api/v1/audit-logs', auditLogsRouter);
 app.use('/api/v1/templates', templatesRouter);
 app.use('/api/v1/compliance', complianceRouter);
 app.use('/api/v1/demands', demandsRouter);
-app.use('/api/v1/invitations', invitationsRouter); // Public - no auth required
+app.use('/api/v1/invitations', invitationsRouter);
 app.use('/api/v1/debtors', debtorsRouter);
+
+// Mount demands routes at root to handle API Gateway path stripping
+// API Gateway with {proxy+} may pass only the captured segment
+app.use('/', demandsRouter);
 
 // Error handling (must be last)
 app.use(errorHandler);

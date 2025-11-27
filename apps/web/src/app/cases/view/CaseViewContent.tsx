@@ -12,14 +12,12 @@ interface Case {
   referenceNumber: string;
   debtorName: string;
   debtorEmail: string;
-  debtorPhone: string;
   creditorName: string;
-  originalAmount: number;
-  currentBalance: number;
+  debtAmount: number;
   status: string;
   createdAt: string;
-  lastActivityAt: string;
-  notes: string;
+  updatedAt: string;
+  metadata?: Record<string, unknown>;
 }
 
 interface Message {
@@ -65,6 +63,9 @@ export default function CaseViewContent() {
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'messages' | 'documents'>('details');
+  const [generatingLetter, setGeneratingLetter] = useState(false);
+  const [generatedLetter, setGeneratedLetter] = useState<{ id: string; content: string } | null>(null);
+  const [generateError, setGenerateError] = useState('');
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -100,8 +101,12 @@ export default function CaseViewContent() {
   const fetchCaseData = async () => {
     if (!caseId) return;
     try {
-      const response = await fetch(`${API_URL}/api/v1/cases/${caseId}`, {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${API_URL}/api/v1/demands/cases/${caseId}`, {
         credentials: 'include',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
       });
 
       if (response.ok) {
@@ -118,13 +123,18 @@ export default function CaseViewContent() {
   const fetchMessages = async () => {
     if (!caseId) return;
     try {
-      const response = await fetch(`${API_URL}/api/v1/cases/${caseId}/messages`, {
+      const token = localStorage.getItem('authToken');
+      // Note: Messages endpoint may not exist yet - this is a placeholder
+      const response = await fetch(`${API_URL}/api/v1/demands/cases/${caseId}/messages`, {
         credentials: 'include',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
       });
 
       if (response.ok) {
         const data = await response.json();
-        setMessages(data.data || []);
+        setMessages(data.data?.items || data.data || []);
       }
     } catch (error) {
       console.error('Failed to fetch messages:', error);
@@ -137,10 +147,12 @@ export default function CaseViewContent() {
     setSendingMessage(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/v1/cases/${caseId}/messages`, {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${API_URL}/api/v1/demands/cases/${caseId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
         },
         credentials: 'include',
         body: JSON.stringify({ content: newMessage }),
@@ -154,6 +166,52 @@ export default function CaseViewContent() {
       console.error('Failed to send message:', error);
     } finally {
       setSendingMessage(false);
+    }
+  };
+
+  const handleGenerateLetter = async () => {
+    if (!caseData || !caseId) return;
+
+    setGeneratingLetter(true);
+    setGenerateError('');
+    setGeneratedLetter(null);
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${API_URL}/api/v1/demands/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          caseId,
+          caseDetails: {
+            debtorName: caseData.debtorName || 'Unknown Debtor',
+            creditorName: caseData.creditorName || 'Unknown Creditor',
+            debtAmount: {
+              principal: Number(caseData.debtAmount) || 0,
+            },
+            stateJurisdiction: 'NY', // Default state - could be made dynamic
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error?.message || 'Failed to generate letter');
+      }
+
+      const data = await response.json();
+      setGeneratedLetter({
+        id: data.data.id,
+        content: data.data.content,
+      });
+    } catch (error) {
+      setGenerateError(error instanceof Error ? error.message : 'Failed to generate letter');
+    } finally {
+      setGeneratingLetter(false);
     }
   };
 
@@ -214,15 +272,9 @@ export default function CaseViewContent() {
           {/* Quick Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
             <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-500">Original Amount</p>
-              <p className="text-xl font-bold text-gray-900">
-                ${(caseData.originalAmount || 0).toLocaleString()}
-              </p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-500">Current Balance</p>
+              <p className="text-sm text-gray-500">Debt Amount</p>
               <p className="text-xl font-bold text-primary-600">
-                ${(caseData.currentBalance || 0).toLocaleString()}
+                ${Number(caseData.debtAmount || 0).toLocaleString()}
               </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
@@ -271,29 +323,22 @@ export default function CaseViewContent() {
                 <p className="mt-1 text-gray-900">{caseData.debtorEmail || '-'}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-500">Phone</label>
-                <p className="mt-1 text-gray-900">{caseData.debtorPhone || '-'}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-500">Last Activity</label>
+                <label className="block text-sm font-medium text-gray-500">Last Updated</label>
                 <p className="mt-1 text-gray-900">
-                  {caseData.lastActivityAt
-                    ? new Date(caseData.lastActivityAt).toLocaleString()
+                  {caseData.updatedAt
+                    ? new Date(caseData.updatedAt).toLocaleString()
                     : '-'}
                 </p>
               </div>
             </div>
 
-            {caseData.notes && (
-              <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-500">Notes</label>
-                <p className="mt-1 text-gray-900 whitespace-pre-wrap">{caseData.notes}</p>
-              </div>
-            )}
-
             <div className="mt-6 pt-6 border-t flex gap-3">
-              <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
-                Send Demand Letter
+              <button
+                onClick={handleGenerateLetter}
+                disabled={generatingLetter}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {generatingLetter ? 'Generating...' : 'Generate Demand Letter'}
               </button>
               <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                 Update Status
@@ -302,6 +347,34 @@ export default function CaseViewContent() {
                 Record Payment
               </button>
             </div>
+
+            {generateError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {generateError}
+              </div>
+            )}
+
+            {generatedLetter && (
+              <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-green-800">Demand Letter Generated</h4>
+                  <button
+                    onClick={() => setGeneratedLetter(null)}
+                    className="text-green-600 hover:text-green-800"
+                  >
+                    &times;
+                  </button>
+                </div>
+                <div className="bg-white p-4 rounded border max-h-64 overflow-y-auto">
+                  <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans">
+                    {generatedLetter.content}
+                  </pre>
+                </div>
+                <p className="mt-2 text-xs text-green-600">
+                  Letter ID: {generatedLetter.id}
+                </p>
+              </div>
+            )}
           </div>
         )}
 

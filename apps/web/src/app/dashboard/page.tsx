@@ -119,10 +119,13 @@ export default function DashboardPage() {
                 <span className="text-2xl mb-2">📁</span>
                 <span className="text-sm font-medium text-gray-700">View Cases</span>
               </Link>
-              <button className="flex flex-col items-center p-4 rounded-lg border border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition-colors">
+              <Link
+                href="/cases?new=true"
+                className="flex flex-col items-center p-4 rounded-lg border border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition-colors"
+              >
                 <span className="text-2xl mb-2">➕</span>
                 <span className="text-sm font-medium text-gray-700">New Case</span>
-              </button>
+              </Link>
               <Link
                 href="/analytics"
                 className="flex flex-col items-center p-4 rounded-lg border border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition-colors"
