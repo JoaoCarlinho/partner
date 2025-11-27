@@ -4,6 +4,8 @@ logs/
 
 # process docs
 dev_docs_archive/
+demand_letter_ui_agile_docs/
+ui_implementation_docs/
 
 # macOS files
 .DS_Store
