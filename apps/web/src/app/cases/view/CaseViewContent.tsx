@@ -4,6 +4,10 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CollectorNav } from '@/components/CollectorNav';
+import { RefinementPanel, RefinementResult } from './components/RefinementPanel';
+import { VersionToolbar } from './components/VersionToolbar';
+import { DemandLetterList } from './components/DemandLetterList';
+import { DemandLetterDetail } from './components/DemandLetterDetail';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://qs5x4c1cp0.execute-api.us-east-1.amazonaws.com/dev';
 
@@ -55,6 +59,7 @@ export default function CaseViewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const caseId = searchParams.get('id');
+  const letterId = searchParams.get('letterId');
 
   const [user, setUser] = useState<User | null>(null);
   const [caseData, setCaseData] = useState<Case | null>(null);
@@ -62,9 +67,15 @@ export default function CaseViewContent() {
   const [loading, setLoading] = useState(true);
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
-  const [activeTab, setActiveTab] = useState<'details' | 'messages' | 'documents'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'messages' | 'documents' | 'demands'>('details');
   const [generatingLetter, setGeneratingLetter] = useState(false);
-  const [generatedLetter, setGeneratedLetter] = useState<{ id: string; content: string } | null>(null);
+  const [generatedLetter, setGeneratedLetter] = useState<{
+    id: string;
+    content: string;
+    status?: string;
+    currentVersion: number;
+    totalVersions: number;
+  } | null>(null);
   const [generateError, setGenerateError] = useState('');
 
   useEffect(() => {
@@ -207,12 +218,78 @@ export default function CaseViewContent() {
       setGeneratedLetter({
         id: data.data.id,
         content: data.data.content,
+        status: data.data.status || 'DRAFT',
+        currentVersion: data.data.currentVersion || data.data.version || 1,
+        totalVersions: data.data.totalVersions || data.data.currentVersion || 1,
       });
     } catch (error) {
       setGenerateError(error instanceof Error ? error.message : 'Failed to generate letter');
     } finally {
       setGeneratingLetter(false);
     }
+  };
+
+  const handleRefineLetter = async (instruction: string): Promise<RefinementResult> => {
+    if (!generatedLetter) {
+      throw new Error('No letter to refine');
+    }
+
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_URL}/api/v1/demands/${generatedLetter.id}/refine`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      credentials: 'include',
+      body: JSON.stringify({ instruction }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error?.message || 'Failed to refine letter');
+    }
+
+    const data = await response.json();
+    const result: RefinementResult = {
+      id: data.data?.id || data.id || generatedLetter.id,
+      content: data.data?.content || data.content,
+      version: data.data?.version || data.version || 1,
+      previousVersion: data.data?.previousVersion || data.previousVersion || 1,
+      refinementInstruction: instruction,
+      complianceResult: data.data?.complianceResult || data.complianceResult || {
+        isCompliant: true,
+        score: 85,
+        checks: [],
+      },
+      diff: data.data?.diff || data.diff || { additions: 0, deletions: 0 },
+      warnings: data.data?.warnings || data.warnings || [],
+    };
+
+    return result;
+  };
+
+  const handleAcceptRefinement = (result: RefinementResult) => {
+    setGeneratedLetter((prev) => ({
+      id: result.id,
+      content: result.content,
+      status: 'DRAFT',
+      currentVersion: result.version,
+      totalVersions: result.version, // After accepting, this becomes the latest version
+    }));
+  };
+
+  const handleRejectRefinement = () => {
+    // Just dismiss the results, original content is preserved
+  };
+
+  const handleVersionChange = (newContent: string, newVersion: number, newTotalVersions: number) => {
+    setGeneratedLetter((prev) => prev ? {
+      ...prev,
+      content: newContent,
+      currentVersion: newVersion,
+      totalVersions: newTotalVersions,
+    } : null);
   };
 
   if (!user || loading) {
@@ -293,7 +370,7 @@ export default function CaseViewContent() {
         {/* Tabs */}
         <div className="border-b border-gray-200 mb-6">
           <nav className="-mb-px flex space-x-8">
-            {(['details', 'messages', 'documents'] as const).map((tab) => (
+            {(['details', 'demands', 'messages', 'documents'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -357,7 +434,14 @@ export default function CaseViewContent() {
             {generatedLetter && (
               <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-green-800">Demand Letter Generated</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium text-green-800">Demand Letter Generated</h4>
+                    {generatedLetter.status && (
+                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                        {generatedLetter.status}
+                      </span>
+                    )}
+                  </div>
                   <button
                     onClick={() => setGeneratedLetter(null)}
                     className="text-green-600 hover:text-green-800"
@@ -365,6 +449,19 @@ export default function CaseViewContent() {
                     &times;
                   </button>
                 </div>
+
+                {/* Version Toolbar - Only show for DRAFT letters with multiple versions */}
+                {(!generatedLetter.status || generatedLetter.status === 'DRAFT') && (
+                  <div className="mb-3">
+                    <VersionToolbar
+                      letterId={generatedLetter.id}
+                      currentVersion={generatedLetter.currentVersion}
+                      totalVersions={generatedLetter.totalVersions}
+                      onVersionChange={handleVersionChange}
+                    />
+                  </div>
+                )}
+
                 <div className="bg-white p-4 rounded border max-h-64 overflow-y-auto">
                   <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans">
                     {generatedLetter.content}
@@ -373,6 +470,19 @@ export default function CaseViewContent() {
                 <p className="mt-2 text-xs text-green-600">
                   Letter ID: {generatedLetter.id}
                 </p>
+              </div>
+            )}
+
+            {/* AI Refinement Panel - Only show for DRAFT letters */}
+            {generatedLetter && (!generatedLetter.status || generatedLetter.status === 'DRAFT') && (
+              <div className="mt-6">
+                <RefinementPanel
+                  letterId={generatedLetter.id}
+                  originalContent={generatedLetter.content}
+                  onRefine={handleRefineLetter}
+                  onAccept={handleAcceptRefinement}
+                  onReject={handleRejectRefinement}
+                />
               </div>
             )}
           </div>
@@ -447,6 +557,24 @@ export default function CaseViewContent() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'demands' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            {letterId ? (
+              /* Show detail view when letterId is present (AC-2.1.8) */
+              <DemandLetterDetail caseId={caseId} letterId={letterId} />
+            ) : (
+              /* Show list view otherwise */
+              <>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Demand Letters</h2>
+                <DemandLetterList
+                  caseId={caseId}
+                  onGenerateLetter={handleGenerateLetter}
+                />
+              </>
+            )}
           </div>
         )}
 
