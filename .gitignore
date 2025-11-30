@@ -51,9 +51,12 @@ scripts/
 # Ignore node modules
 node_modules/
 
-# Ignore lambda zip files
-apps/api/lambda-api.zip
-lambda-package.zip
-migration-runner.zip
-lambda.zip
-lambda-deployment.zip
+# Ignore lambda and elastic beanstalk zip files
+*.zip
+lambda*
+
+# Playwright test artifacts
+**/e2e/demo-results/
+**/e2e/demo-report/
+**/playwright-report/
+**/test-results/
