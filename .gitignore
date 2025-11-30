@@ -51,9 +51,10 @@ scripts/
 # Ignore node modules
 node_modules/
 
-# Ignore lambda and elastic beanstalk zip files
+# Ignore lambda and elastic beanstalk deployment artifacts
 *.zip
 lambda*
+eb-deploy/
 
 # Playwright test artifacts
 **/e2e/demo-results/

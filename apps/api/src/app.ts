@@ -10,6 +10,8 @@ import complianceRouter from './handlers/compliance.js';
 import demandsRouter from './handlers/demands.js';
 import invitationsRouter from './handlers/invitations.js';
 import debtorsRouter from './handlers/debtors.js';
+import defendersRouter from './handlers/defenders.js';
+import seedRouter from './handlers/seed.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestLogger, logger } from './middleware/logger.js';
 import { requestId } from './middleware/requestId.js';
@@ -29,9 +31,23 @@ app.use(requestId);
 // 2. Request logging
 app.use(requestLogger);
 
-// 3. CORS
+// 3. CORS - allow multiple origins for dev/prod flexibility
+const allowedOrigins = [
+  process.env.CORS_ORIGIN,
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://d13ip2cieye91r.cloudfront.net', // AWS CloudFront frontend
+].filter(Boolean) as string[];
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, Postman, etc)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, origin);
+    }
+    return callback(null, false);
+  },
   credentials: true, // Allow cookies
 }));
 
@@ -72,6 +88,8 @@ app.use('/api/v1/compliance', complianceRouter);
 app.use('/api/v1/demands', demandsRouter);
 app.use('/api/v1/invitations', invitationsRouter);
 app.use('/api/v1/debtors', debtorsRouter);
+app.use('/api/v1/defenders', defendersRouter);
+app.use('/api/v1/seed', seedRouter);
 
 // Mount demands routes at root to handle API Gateway path stripping
 // API Gateway with {proxy+} may pass only the captured segment
@@ -80,8 +98,8 @@ app.use('/', demandsRouter);
 // Error handling (must be last)
 app.use(errorHandler);
 
-// Start server if not in Lambda
-if (process.env.NODE_ENV !== 'production') {
+// Start server if not in Lambda (either dev mode or Docker mode)
+if (process.env.NODE_ENV !== 'production' || process.env.DOCKER_MODE === 'true') {
   const PORT = process.env.PORT || 3001;
   app.listen(PORT, () => {
     logger.info(`API server running on http://localhost:${PORT}`);

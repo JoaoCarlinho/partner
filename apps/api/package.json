@@ -13,7 +13,9 @@
     "lint": "eslint src --ext .ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:push": "prisma db push"
+    "prisma:push": "prisma db push",
+    "seed": "tsx prisma/seed.ts",
+    "prisma:seed": "prisma db seed"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.939.0",
@@ -36,7 +38,8 @@
     "swagger-ui-express": "^5.0.1",
     "uuid": "^10.0.0",
     "winston": "^3.14.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "prisma": "^5.22.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
@@ -49,7 +52,6 @@
     "@types/pdfkit": "^0.17.3",
     "@types/supertest": "^6.0.2",
     "@types/uuid": "^10.0.0",
-    "prisma": "^5.22.0",
     "supertest": "^7.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
@@ -63,5 +65,8 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
-  "types": "./dist/app.d.ts"
+  "types": "./dist/app.d.ts",
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
 }

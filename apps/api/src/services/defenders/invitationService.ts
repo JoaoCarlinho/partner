@@ -4,6 +4,7 @@
  */
 
 import crypto from 'crypto';
+import { sendEmail } from '../email/sesClient';
 
 // In-memory stores (use database in production)
 const invitationStore = new Map<string, DefenderInvitation>();
@@ -34,6 +35,41 @@ export interface InvitationValidation {
 
 // Configuration
 const INVITATION_EXPIRY_DAYS = 7;
+const APP_URL = process.env.APP_URL || 'https://d13ip2cieye91r.cloudfront.net';
+
+/**
+ * Send defender invitation email
+ */
+async function sendDefenderInvitationEmail(invitation: DefenderInvitation): Promise<void> {
+  const inviteUrl = `${APP_URL}/defender/accept-invitation/index.html?token=${invitation.token}`;
+  const expiresFormatted = invitation.expiresAt.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  await sendEmail({
+    to: invitation.email,
+    subject: 'You\'re Invited to Join Steno as a Public Defender',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #493087;">You're Invited!</h1>
+        <p>You've been invited to join <strong>Steno</strong> as a public defender${invitation.organizationName ? ` representing <strong>${invitation.organizationName}</strong>` : ''}.</p>
+        <p>Steno helps public defenders efficiently manage cases and communicate with clients through our secure platform.</p>
+        <p style="margin: 24px 0;">
+          <a href="${inviteUrl}"
+             style="background-color: #493087; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            Accept Invitation
+          </a>
+        </p>
+        <p style="color: #666;">This invitation will expire on ${expiresFormatted}.</p>
+        <p style="color: #666; font-size: 12px;">If you didn't expect this invitation, you can safely ignore this email.</p>
+      </div>
+    `,
+    text: `You've been invited to join Steno as a public defender${invitation.organizationName ? ` representing ${invitation.organizationName}` : ''}.\n\nAccept your invitation: ${inviteUrl}\n\nThis invitation expires on ${expiresFormatted}.`,
+  });
+}
 
 /**
  * Invite a new public defender
@@ -73,16 +109,13 @@ export async function inviteDefender(
   invitationStore.set(invitation.id, invitation);
   invitationByToken.set(token, invitation.id);
 
-  // In production, send invitation email here
-  // await emailService.send({
-  //   to: request.email,
-  //   template: 'defender-invitation',
-  //   data: {
-  //     inviteUrl: `${process.env.APP_URL}/defender/invite/${token}`,
-  //     organizationName: request.organizationName,
-  //     expiresAt: invitation.expiresAt
-  //   }
-  // });
+  // Send invitation email
+  try {
+    await sendDefenderInvitationEmail(invitation);
+  } catch (error) {
+    console.error('Failed to send invitation email:', error);
+    // Don't fail the invitation creation if email fails
+  }
 
   return invitation;
 }
@@ -233,8 +266,12 @@ export async function resendInvitation(invitationId: string): Promise<DefenderIn
 
   invitationStore.set(invitationId, invitation);
 
-  // In production, resend email
-  // await emailService.send({...});
+  // Resend invitation email
+  try {
+    await sendDefenderInvitationEmail(invitation);
+  } catch (error) {
+    console.error('Failed to resend invitation email:', error);
+  }
 
   return invitation;
 }

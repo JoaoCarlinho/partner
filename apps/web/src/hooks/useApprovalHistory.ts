@@ -108,8 +108,9 @@ export function useApprovalHistory(demandId: string): UseApprovalHistoryReturn {
         throw new Error(data.error?.message || `Failed to fetch history (${response.status})`);
       }
 
-      const data: ApprovalHistoryResponse = await response.json();
-      const historyData = data.data || data;
+      const responseData = await response.json();
+      // Handle both wrapped ({ data: {...} }) and unwrapped API responses
+      const historyData: ApprovalHistoryResponse = responseData.data || responseData;
 
       setHistory(historyData.history || []);
       setCurrentStatus(historyData.currentStatus || null);

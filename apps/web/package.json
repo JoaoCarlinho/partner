@@ -9,7 +9,14 @@
     "lint": "next lint",
     "export": "next build",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:demo": "playwright test --project=demo-chromium",
+    "test:demo:admin": "playwright test e2e/demo-tests/admin/ --project=demo-chromium",
+    "test:demo:paralegal": "playwright test e2e/demo-tests/law-firm/paralegal --project=demo-chromium",
+    "test:demo:attorney": "playwright test e2e/demo-tests/law-firm/attorney --project=demo-chromium",
+    "test:demo:defender": "playwright test e2e/demo-tests/defender/ --project=demo-chromium",
+    "test:demo:debtor": "playwright test e2e/demo-tests/debtor/ --project=demo-chromium",
+    "test:demo:report": "playwright show-report e2e/demo-report"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -20,6 +27,7 @@
     "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",

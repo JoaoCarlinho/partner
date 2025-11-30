@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://d1comazpq780af.cloudfront.net';
 
 export interface InvitationValidation {
   valid: boolean;

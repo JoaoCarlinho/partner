@@ -4,7 +4,7 @@ const ses = new SESClient({
   region: process.env.AWS_REGION || 'us-east-1',
 });
 
-const FROM_EMAIL = process.env.SES_FROM_EMAIL || 'noreply@steno.com';
+const FROM_EMAIL = process.env.SES_FROM_EMAIL || 'johnathan.skeete@gauntletai.com';
 const APP_URL = process.env.APP_URL || 'http://localhost:3000';
 
 interface EmailParams {

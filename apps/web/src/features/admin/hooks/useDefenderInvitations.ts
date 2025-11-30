@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://d1comazpq780af.cloudfront.net';
 
 export interface DefenderInvitation {
   id: string;
@@ -41,7 +41,7 @@ export function useDefenderInvitations(): UseDefenderInvitationsResult {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
       };
@@ -57,8 +57,14 @@ export function useDefenderInvitations(): UseDefenderInvitationsResult {
         throw new Error(`Failed to fetch invitations: ${response.statusText}`);
       }
 
-      const data = await response.json();
-      setInvitations(data.invitations || data || []);
+      const responseData = await response.json();
+      // Handle API response wrapper: { data: { invitations: [...] } }
+      const payload = responseData.data || responseData;
+      const invitationList = payload.invitations || payload || [];
+
+      // Ensure invitationList is an array
+      const invitations = Array.isArray(invitationList) ? invitationList : [];
+      setInvitations(invitations);
 
       // Calculate stats from the data
       const now = new Date();
@@ -69,8 +75,7 @@ export function useDefenderInvitations(): UseDefenderInvitationsResult {
         expired: 0,
       };
 
-      const invitationList = data.invitations || data || [];
-      invitationList.forEach((inv: DefenderInvitation) => {
+      invitations.forEach((inv: DefenderInvitation) => {
         calculatedStats.total++;
         const expiresAt = new Date(inv.expiresAt);
 
@@ -126,7 +131,7 @@ export function useSendInvitation(): UseSendInvitationResult {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
       };
@@ -174,7 +179,7 @@ export function useResendInvitation(): UseResendInvitationResult {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
       };
@@ -221,7 +226,7 @@ export function useRevokeInvitation(): UseRevokeInvitationResult {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
       };
