@@ -9,11 +9,9 @@ on:
       environment:
         description: 'Environment to deploy to'
         required: true
-        default: 'dev'
+        default: 'prod'
         type: choice
         options:
-          - dev
-          - staging
           - prod
       deploy_api:
         description: 'Deploy API'
@@ -30,6 +28,8 @@ env:
   AWS_REGION: us-east-1
   PROJECT_NAME: steno
   NODE_VERSION: '20'
+  EB_APPLICATION: steno-prod-backend
+  EB_ENVIRONMENT: steno-prod-backend-vpc
 
 jobs:
   # Determine what changed
@@ -91,15 +91,15 @@ jobs:
         if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
         run: npm run test --workspace=@steno/web || true
 
-  # Deploy API Lambda
+  # Deploy API to Elastic Beanstalk
   deploy-api:
-    name: Deploy API
+    name: Deploy API (Elastic Beanstalk)
     runs-on: ubuntu-latest
     needs: [changes, build]
     if: |
       (needs.changes.outputs.api == 'true' || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch') &&
       (github.event_name != 'workflow_dispatch' || inputs.deploy_api)
-    environment: ${{ github.event.inputs.environment || 'dev' }}
+    environment: ${{ github.event.inputs.environment || 'prod' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -127,114 +127,104 @@ jobs:
         working-directory: apps/api
         run: npx prisma generate
 
-      - name: Create deployment package
+      - name: Create Elastic Beanstalk deployment package
         id: package
         run: |
-          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
-          LAMBDA_FUNCTION="${PROJECT_NAME}-${ENVIRONMENT}-api"
-
-          echo "Creating deployment package for $LAMBDA_FUNCTION"
+          VERSION_LABEL="v${{ github.sha }}-$(date +%Y%m%d%H%M%S)"
+          echo "Creating EB deployment package: $VERSION_LABEL"
 
           cd apps/api
 
-          # Create deployment directory
-          rm -rf deployment lambda-deploy.zip
-          mkdir -p deployment
+          # Clean and create deployment directory
+          rm -rf eb-deploy
+          mkdir -p eb-deploy
 
-          # Copy built files
-          cp -r dist deployment/
-          cp package.json package-lock.json deployment/
+          # Copy Dockerfile
+          cp Dockerfile eb-deploy/
 
-          # Copy Prisma
-          mkdir -p deployment/prisma
-          cp prisma/schema.prisma deployment/prisma/
+          # Copy built dist
+          cp -r dist eb-deploy/
 
-          # Install production dependencies in deployment folder
-          cd deployment
-          npm ci --omit=dev
+          # Copy package files
+          cp package.json eb-deploy/
+
+          # Copy Prisma schema
+          mkdir -p eb-deploy/prisma
+          cp prisma/schema.prisma eb-deploy/prisma/
+
+          # Copy shared package (TypeScript source)
+          mkdir -p eb-deploy/shared
+          cp -r ../../packages/shared/types eb-deploy/shared/
+          cp -r ../../packages/shared/constants eb-deploy/shared/
+          cp -r ../../packages/shared/schemas eb-deploy/shared/
+          cp ../../packages/shared/index.ts eb-deploy/shared/
+          cp ../../packages/shared/package.json eb-deploy/shared/
+
+          # Create zip for EB
+          cd eb-deploy
+          zip -r ../eb-deploy.zip . -x "*.map" "*.md" "tests/*" "*.test.*"
           cd ..
 
-          # Copy shared package (TypeScript source - no build step)
-          mkdir -p deployment/node_modules/@steno/shared
-          cp -r ../../packages/shared/types deployment/node_modules/@steno/shared/
-          cp -r ../../packages/shared/constants deployment/node_modules/@steno/shared/
-          cp -r ../../packages/shared/schemas deployment/node_modules/@steno/shared/
-          cp ../../packages/shared/index.ts deployment/node_modules/@steno/shared/
-          cp ../../packages/shared/package.json deployment/node_modules/@steno/shared/
-
-          # Create Lambda entry point
-          cat > deployment/index.js << 'EOF'
-          const { handler } = require('./dist/handlers/api.js');
-          module.exports = { handler };
-          EOF
-
-          # Create zip (exclude .ts files except in @steno/shared which is raw TS)
-          cd deployment
-          zip -r -q ../lambda-deploy.zip . -x "*.map" "*.md" "tests/*" "*.test.*"
-          cd ..
-
-          PACKAGE_SIZE=$(du -h lambda-deploy.zip | cut -f1)
+          PACKAGE_SIZE=$(du -h eb-deploy.zip | cut -f1)
           echo "Package size: $PACKAGE_SIZE"
 
-          echo "package_path=apps/api/lambda-deploy.zip" >> $GITHUB_OUTPUT
-          echo "lambda_function=$LAMBDA_FUNCTION" >> $GITHUB_OUTPUT
+          echo "version_label=$VERSION_LABEL" >> $GITHUB_OUTPUT
+          echo "package_path=apps/api/eb-deploy.zip" >> $GITHUB_OUTPUT
 
-      - name: Upload to S3 (for large packages)
+      - name: Upload to S3
         id: upload
         run: |
-          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
-          LAMBDA_FUNCTION="${{ steps.package.outputs.lambda_function }}"
-          PACKAGE_PATH="${{ steps.package.outputs.package_path }}"
+          S3_BUCKET="elasticbeanstalk-${{ env.AWS_REGION }}-$(aws sts get-caller-identity --query Account --output text)"
+          S3_KEY="${{ env.EB_APPLICATION }}/${{ steps.package.outputs.version_label }}.zip"
 
-          PACKAGE_SIZE=$(stat -c%s "$PACKAGE_PATH" 2>/dev/null || stat -f%z "$PACKAGE_PATH" 2>/dev/null)
+          echo "Uploading to s3://${S3_BUCKET}/${S3_KEY}"
 
-          # If > 50MB, upload to S3
-          if [ "$PACKAGE_SIZE" -gt 52428800 ]; then
-            S3_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-deployments"
-            S3_KEY="lambda/${LAMBDA_FUNCTION}/deploy-${{ github.sha }}.zip"
+          aws s3 cp "${{ steps.package.outputs.package_path }}" "s3://${S3_BUCKET}/${S3_KEY}"
 
-            # Create bucket if needed
-            aws s3 mb "s3://${S3_BUCKET}" --region ${{ env.AWS_REGION }} 2>/dev/null || true
+          echo "s3_bucket=$S3_BUCKET" >> $GITHUB_OUTPUT
+          echo "s3_key=$S3_KEY" >> $GITHUB_OUTPUT
 
-            # Upload
-            aws s3 cp "$PACKAGE_PATH" "s3://${S3_BUCKET}/${S3_KEY}"
-
-            echo "use_s3=true" >> $GITHUB_OUTPUT
-            echo "s3_bucket=$S3_BUCKET" >> $GITHUB_OUTPUT
-            echo "s3_key=$S3_KEY" >> $GITHUB_OUTPUT
-          else
-            echo "use_s3=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Deploy Lambda (direct)
-        if: steps.upload.outputs.use_s3 != 'true'
+      - name: Create EB Application Version
         run: |
-          aws lambda update-function-code \
-            --function-name "${{ steps.package.outputs.lambda_function }}" \
-            --zip-file "fileb://${{ steps.package.outputs.package_path }}" \
+          aws elasticbeanstalk create-application-version \
+            --application-name "${{ env.EB_APPLICATION }}" \
+            --version-label "${{ steps.package.outputs.version_label }}" \
+            --source-bundle S3Bucket="${{ steps.upload.outputs.s3_bucket }}",S3Key="${{ steps.upload.outputs.s3_key }}" \
             --region ${{ env.AWS_REGION }}
 
-      - name: Deploy Lambda (from S3)
-        if: steps.upload.outputs.use_s3 == 'true'
+      - name: Deploy to Elastic Beanstalk
         run: |
-          aws lambda update-function-code \
-            --function-name "${{ steps.package.outputs.lambda_function }}" \
-            --s3-bucket "${{ steps.upload.outputs.s3_bucket }}" \
-            --s3-key "${{ steps.upload.outputs.s3_key }}" \
+          aws elasticbeanstalk update-environment \
+            --application-name "${{ env.EB_APPLICATION }}" \
+            --environment-name "${{ env.EB_ENVIRONMENT }}" \
+            --version-label "${{ steps.package.outputs.version_label }}" \
             --region ${{ env.AWS_REGION }}
 
-      - name: Wait for Lambda update
+      - name: Wait for deployment
         run: |
-          aws lambda wait function-updated \
-            --function-name "${{ steps.package.outputs.lambda_function }}" \
+          echo "Waiting for environment to be ready..."
+          aws elasticbeanstalk wait environment-updated \
+            --application-name "${{ env.EB_APPLICATION }}" \
+            --environment-names "${{ env.EB_ENVIRONMENT }}" \
             --region ${{ env.AWS_REGION }}
 
       - name: Verify deployment
         run: |
-          aws lambda get-function \
-            --function-name "${{ steps.package.outputs.lambda_function }}" \
-            --query 'Configuration.{LastModified:LastModified,State:State,CodeSize:CodeSize}' \
-            --region ${{ env.AWS_REGION }}
+          ENV_INFO=$(aws elasticbeanstalk describe-environments \
+            --application-name "${{ env.EB_APPLICATION }}" \
+            --environment-names "${{ env.EB_ENVIRONMENT }}" \
+            --query 'Environments[0].{Status:Status,Health:Health,VersionLabel:VersionLabel,EndpointURL:EndpointURL}' \
+            --region ${{ env.AWS_REGION }} \
+            --output json)
+
+          echo "$ENV_INFO"
+
+          HEALTH=$(echo "$ENV_INFO" | jq -r '.Health')
+          if [ "$HEALTH" = "Green" ]; then
+            echo "✅ Deployment successful! Environment health: Green"
+          else
+            echo "⚠️ Environment health: $HEALTH"
+          fi
 
   # Deploy Frontend
   deploy-frontend:
@@ -244,7 +234,7 @@ jobs:
     if: |
       (needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch') &&
       (github.event_name != 'workflow_dispatch' || inputs.deploy_frontend)
-    environment: ${{ github.event.inputs.environment || 'dev' }}
+    environment: ${{ github.event.inputs.environment || 'prod' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -273,7 +263,7 @@ jobs:
       - name: Deploy to S3
         id: deploy
         run: |
-          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
+          ENVIRONMENT="${{ github.event.inputs.environment || 'prod' }}"
           S3_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-frontend"
 
           echo "Deploying to s3://$S3_BUCKET"
@@ -354,8 +344,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| API | ${{ needs.deploy-api.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Frontend | ${{ needs.deploy-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| API (Elastic Beanstalk) | ${{ needs.deploy-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend (S3/CloudFront) | ${{ needs.deploy-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "Branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
