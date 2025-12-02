@@ -32,7 +32,9 @@ import {
 import { generateLetterPDF } from '../services/pdf/pdfGenerator.js';
 import { logger } from '../middleware/logger.js';
 import { prisma } from '../lib/prisma.js';
-import { LetterStatus, CaseStatus } from '@prisma/client';
+// Define enums locally to avoid Prisma client export issues
+type CaseStatus = 'ACTIVE' | 'RESOLVED' | 'ESCALATED' | 'CLOSED';
+type LetterStatus = 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'READY_TO_SEND' | 'SENT';
 import { logAuditEvent } from '../services/audit/auditLogger.js';
 import { z } from 'zod';
 

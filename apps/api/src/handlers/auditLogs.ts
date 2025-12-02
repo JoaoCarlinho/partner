@@ -104,7 +104,7 @@ router.get(
 
       res.json(
         successResponse(
-          results.map((log) => ({
+          results.map((log: (typeof results)[number]) => ({
             id: log.id,
             action: log.action,
             resourceType: log.entityType,

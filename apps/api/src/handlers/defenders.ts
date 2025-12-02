@@ -100,7 +100,7 @@ router.get(
       });
 
       // Transform to match frontend expectations
-      const transformedInvitations = invitations.map((inv) => ({
+      const transformedInvitations = invitations.map((inv: (typeof invitations)[number]) => ({
         id: inv.id,
         email: inv.email,
         token: inv.inviteCode,

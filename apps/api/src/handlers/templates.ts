@@ -305,7 +305,8 @@ router.put(
             templateId: current.id,
             version: current.version,
             content: current.content,
-            variables: current.variables as Prisma.InputJsonValue,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            variables: current.variables as any,
           },
         });
       }
@@ -439,7 +440,7 @@ router.get(
 
       const allVersions = [
         currentVersion,
-        ...versions.map((v) => ({
+        ...versions.map((v: (typeof versions)[number]) => ({
           id: v.id,
           templateId: v.templateId,
           version: v.version,
@@ -505,7 +506,8 @@ router.post(
           templateId: template.id,
           version: template.version,
           content: template.content,
-          variables: template.variables as Prisma.InputJsonValue,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          variables: template.variables as any,
         },
       });
 
@@ -514,7 +516,8 @@ router.post(
         where: { id: templateId },
         data: {
           content: versionToRestore.content,
-          variables: versionToRestore.variables as Prisma.InputJsonValue,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          variables: versionToRestore.variables as any,
           version: template.version + 1,
         },
       });
