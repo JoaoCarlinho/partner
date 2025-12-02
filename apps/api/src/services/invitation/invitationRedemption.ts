@@ -4,7 +4,11 @@
  */
 
 import { prisma } from '../../lib/prisma.js';
+import { PrismaClient } from '@prisma/client';
 import { logger } from '../../middleware/logger.js';
+
+// Type for Prisma transaction client
+type TransactionClient = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
@@ -319,7 +323,7 @@ export async function registerDebtor(
   const passwordHash = await bcrypt.hash(registration.password, PASSWORD_SALT_ROUNDS);
 
   // Create user, debtor profile, and session in a transaction
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: TransactionClient) => {
     // Create user with DEBTOR role
     const user = await tx.user.create({
       data: {

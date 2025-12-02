@@ -31,8 +31,9 @@ function createPrismaClient(): PrismaClient {
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
 
-  // Tenant isolation middleware
-  client.$use(async (params: Prisma.MiddlewareParams, next) => {
+  // Tenant isolation middleware - using 'any' for Prisma 5.x compatibility
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  client.$use(async (params: any, next: any) => {
     const context = getTenantContextOrNull();
 
     // Skip tenant filtering if no context (unauthenticated routes)
@@ -53,7 +54,7 @@ function createPrismaClient(): PrismaClient {
     if (READ_OPERATIONS.includes(action)) {
       params.args = params.args || {};
       params.args.where = {
-        ...params.args.where,
+        ...(params.args.where || {}),
         organizationId: orgId,
       };
     }
@@ -62,7 +63,7 @@ function createPrismaClient(): PrismaClient {
     if (WRITE_OPERATIONS.includes(action)) {
       params.args = params.args || {};
       params.args.where = {
-        ...params.args.where,
+        ...(params.args.where || {}),
         organizationId: orgId,
       };
     }
@@ -72,7 +73,7 @@ function createPrismaClient(): PrismaClient {
       params.args = params.args || {};
       if (action === 'create') {
         params.args.data = {
-          ...params.args.data,
+          ...(params.args.data || {}),
           organizationId: orgId,
         };
       } else if (action === 'createMany' && Array.isArray(params.args.data)) {
