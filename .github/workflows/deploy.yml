@@ -122,6 +122,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build shared package
+        run: npm run build --workspace=@steno/shared
+
       - name: Build API
         run: npm run build --workspace=api
 
@@ -154,13 +157,31 @@ jobs:
           mkdir -p eb-deploy/prisma
           cp prisma/schema.prisma eb-deploy/prisma/
 
-          # Copy shared package (TypeScript source)
+          # Copy shared package (compiled JavaScript from dist)
           mkdir -p eb-deploy/shared
-          cp -r ../../packages/shared/types eb-deploy/shared/
-          cp -r ../../packages/shared/constants eb-deploy/shared/
-          cp -r ../../packages/shared/schemas eb-deploy/shared/
-          cp ../../packages/shared/index.ts eb-deploy/shared/
-          cp ../../packages/shared/package.json eb-deploy/shared/
+          cp -r ../../packages/shared/dist/types eb-deploy/shared/
+          cp -r ../../packages/shared/dist/constants eb-deploy/shared/
+          cp -r ../../packages/shared/dist/schemas eb-deploy/shared/
+          cp ../../packages/shared/dist/index.js eb-deploy/shared/
+          cp ../../packages/shared/dist/index.d.ts eb-deploy/shared/
+          # Create package.json pointing to compiled JS
+          cat > eb-deploy/shared/package.json << 'PKGJSON'
+          {
+            "name": "@steno/shared",
+            "version": "0.1.0",
+            "main": "./index.js",
+            "types": "./index.d.ts",
+            "exports": {
+              ".": "./index.js",
+              "./schemas/*": "./schemas/*",
+              "./types/*": "./types/*",
+              "./constants/*": "./constants/*"
+            },
+            "dependencies": {
+              "zod": "^3.23.8"
+            }
+          }
+          PKGJSON
 
           # Create zip for EB
           cd eb-deploy
