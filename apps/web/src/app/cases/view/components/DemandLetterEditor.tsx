@@ -6,7 +6,7 @@ import { useBeforeUnload } from '@/hooks/useBeforeUnload';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { UnsavedChangesModal } from '@/components/UnsavedChangesModal';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://qs5x4c1cp0.execute-api.us-east-1.amazonaws.com/dev';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com';
 
 /** Auto-save interval in milliseconds (30 seconds) */
 const AUTO_SAVE_INTERVAL = 30000;

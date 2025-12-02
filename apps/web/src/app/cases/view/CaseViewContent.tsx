@@ -9,7 +9,7 @@ import { VersionToolbar } from './components/VersionToolbar';
 import { DemandLetterList } from './components/DemandLetterList';
 import { DemandLetterDetail } from './components/DemandLetterDetail';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://qs5x4c1cp0.execute-api.us-east-1.amazonaws.com/dev';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com';
 
 interface Case {
   id: string;

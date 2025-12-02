@@ -40,16 +40,20 @@ The infrastructure is defined using Terraform and deployed to AWS. It provides a
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Deployed Resources (Dev Environment)
+## Deployed Resources (Prod Environment)
 
 | Resource | Identifier/Endpoint |
 |----------|---------------------|
 | VPC | vpc-0a3c1f4a4ab5fb370 |
 | RDS PostgreSQL 15.10 | steno-dev-postgres.crws0amqe1e3.us-east-1.rds.amazonaws.com |
-| API Gateway | https://qs5x4c1cp0.execute-api.us-east-1.amazonaws.com/dev |
+| Elastic Beanstalk API | http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com |
+| Frontend (CloudFront) | https://d13ip2cieye91r.cloudfront.net |
+| S3 Frontend | steno-dev-frontend |
 | S3 Documents | steno-dev-documents-10ed79cd |
 | S3 Templates | steno-dev-templates-10ed79cd |
 | KMS CMK | alias/steno-dev-platform |
+
+**Note:** The API was migrated from Lambda/API Gateway to Elastic Beanstalk for improved performance and cost efficiency.
 
 ## Deployment Steps
 
@@ -169,15 +173,15 @@ terraform {
 ### 2. SSL/TLS Certificates
 
 **MVP Approach:**
-- Using default API Gateway URL: `https://xxx.execute-api.us-east-1.amazonaws.com/dev`
-- AWS-managed SSL certificate (automatic)
+- Using default Elastic Beanstalk URL: `http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com`
+- Frontend via CloudFront with HTTPS: `https://d13ip2cieye91r.cloudfront.net`
 - No custom domain
 
 **Production Approach:**
 - Custom domain (e.g., `api.partner.com`)
 - ACM certificate with DNS validation
 - Route 53 hosted zone for DNS
-- API Gateway custom domain mapping
+- Load balancer with HTTPS termination
 
 ### 3. Database Access
 

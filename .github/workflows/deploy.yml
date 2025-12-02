@@ -30,6 +30,8 @@ env:
   NODE_VERSION: '20'
   EB_APPLICATION: steno-prod-backend
   EB_ENVIRONMENT: steno-prod-backend-vpc
+  # Default API URL pointing to Elastic Beanstalk
+  DEFAULT_API_URL: http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com
 
 jobs:
   # Determine what changed
@@ -80,7 +82,7 @@ jobs:
       - name: Build Frontend
         if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
         env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || env.DEFAULT_API_URL }}
         run: npm run build --workspace=@steno/web
 
       - name: Run API tests
@@ -257,14 +259,14 @@ jobs:
 
       - name: Build Frontend
         env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || env.DEFAULT_API_URL }}
         run: npm run build --workspace=@steno/web
 
       - name: Deploy to S3
         id: deploy
         run: |
-          ENVIRONMENT="${{ github.event.inputs.environment || 'prod' }}"
-          S3_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-frontend"
+          # Using 'dev' bucket since that's where CloudFront points
+          S3_BUCKET="${PROJECT_NAME}-dev-frontend"
 
           echo "Deploying to s3://$S3_BUCKET"
 
