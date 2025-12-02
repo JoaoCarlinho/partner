@@ -183,6 +183,19 @@ export default function CaseViewContent() {
   const handleGenerateLetter = async () => {
     if (!caseData || !caseId) return;
 
+    // Validate debt amount before making the request
+    const principal = Number(caseData.debtAmount);
+    if (!principal || principal <= 0 || isNaN(principal)) {
+      setGenerateError('Debt amount must be greater than 0. Please update the case details with a valid debt amount.');
+      return;
+    }
+
+    // Validate required fields
+    if (!caseData.debtorName || !caseData.creditorName) {
+      setGenerateError('Debtor name and creditor name are required. Please update the case details.');
+      return;
+    }
+
     setGeneratingLetter(true);
     setGenerateError('');
     setGeneratedLetter(null);
@@ -202,7 +215,7 @@ export default function CaseViewContent() {
             debtorName: caseData.debtorName || 'Unknown Debtor',
             creditorName: caseData.creditorName || 'Unknown Creditor',
             debtAmount: {
-              principal: Number(caseData.debtAmount) || 0,
+              principal: principal, // Use validated value
             },
             stateJurisdiction: 'NY', // Default state - could be made dynamic
           },
@@ -211,7 +224,24 @@ export default function CaseViewContent() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error?.message || 'Failed to generate letter');
+        
+        // Extract detailed validation errors if available
+        let errorMessage = data.error?.message || 'Failed to generate letter';
+        
+        if (data.error?.details) {
+          const detailMessages = Object.entries(data.error.details)
+            .map(([field, errors]) => {
+              const errorList = Array.isArray(errors) ? errors.join(', ') : String(errors);
+              return `${field}: ${errorList}`;
+            })
+            .join('\n');
+          
+          if (detailMessages) {
+            errorMessage = `${errorMessage}\n\nValidation errors:\n${detailMessages}`;
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

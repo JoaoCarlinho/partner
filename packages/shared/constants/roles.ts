@@ -13,8 +13,8 @@ export const PERMISSIONS: Record<Role, string[]> = {
   ],
   [Role.PARALEGAL]: [
     'demands:create',
-    'demands:view',
-    'cases:view',
+    'demands:read',
+    'cases:read',
     'messages:send',
     'templates:view',
   ],
