@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CollectorNav } from '@/components/CollectorNav';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://qs5x4c1cp0.execute-api.us-east-1.amazonaws.com/dev';
 
 interface User {
   id: string;
@@ -12,10 +14,45 @@ interface User {
   organizationId?: string;
 }
 
+interface DashboardStats {
+  activeCases: number;
+  collectionRate: number;
+  pendingActions: number;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats>({
+    activeCases: 0,
+    collectionRate: 0,
+    pendingActions: 0,
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  const fetchDashboardStats = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${API_URL}/api/v1/demands/cases`, {
+        credentials: 'include',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const cases = data.data?.items || [];
+        const activeCases = cases.filter((c: { status: string }) => c.status === 'ACTIVE').length;
+        setStats(prev => ({ ...prev, activeCases }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard stats:', error);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -37,11 +74,13 @@ export default function DashboardPage() {
         organizationId: userData.organizationId,
       });
       setLoading(false);
+      // Fetch stats after user is loaded
+      fetchDashboardStats();
     } catch {
       localStorage.removeItem('user');
       router.push('/login');
     }
-  }, [router]);
+  }, [router, fetchDashboardStats]);
 
   if (loading || !user) {
     return (
@@ -71,7 +110,9 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-500">Active Cases</p>
-                  <p className="mt-1 text-2xl font-semibold text-primary-600">0</p>
+                  <p className="mt-1 text-2xl font-semibold text-primary-600">
+                    {statsLoading ? '...' : stats.activeCases}
+                  </p>
                 </div>
                 <span className="text-2xl">📁</span>
               </div>
@@ -81,7 +122,9 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-500">Collection Rate</p>
-                  <p className="mt-1 text-2xl font-semibold text-green-600">0%</p>
+                  <p className="mt-1 text-2xl font-semibold text-green-600">
+                    {statsLoading ? '...' : `${stats.collectionRate}%`}
+                  </p>
                 </div>
                 <span className="text-2xl">📈</span>
               </div>
@@ -101,7 +144,9 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-500">Pending Actions</p>
-                  <p className="mt-1 text-2xl font-semibold text-yellow-600">0</p>
+                  <p className="mt-1 text-2xl font-semibold text-yellow-600">
+                    {statsLoading ? '...' : stats.pendingActions}
+                  </p>
                 </div>
                 <span className="text-2xl">⏳</span>
               </div>
