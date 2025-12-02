@@ -1,0 +1,361 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      deploy_api:
+        description: 'Deploy API'
+        required: true
+        default: true
+        type: boolean
+      deploy_frontend:
+        description: 'Deploy Frontend'
+        required: true
+        default: true
+        type: boolean
+
+env:
+  AWS_REGION: us-east-1
+  PROJECT_NAME: steno
+  NODE_VERSION: '20'
+
+jobs:
+  # Determine what changed
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      shared: ${{ steps.filter.outputs.shared }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'apps/api/**'
+              - 'packages/shared/**'
+            frontend:
+              - 'apps/web/**'
+              - 'packages/shared/**'
+            shared:
+              - 'packages/shared/**'
+
+  # Build and test
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    needs: changes
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build API
+        if: needs.changes.outputs.api == 'true' || github.event_name == 'workflow_dispatch'
+        run: npm run build --workspace=api
+
+      - name: Build Frontend
+        if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+        run: npm run build --workspace=@steno/web
+
+      - name: Run API tests
+        if: needs.changes.outputs.api == 'true' || github.event_name == 'workflow_dispatch'
+        run: npm run test --workspace=api || true
+
+      - name: Run Frontend tests
+        if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+        run: npm run test --workspace=@steno/web || true
+
+  # Deploy API Lambda
+  deploy-api:
+    name: Deploy API
+    runs-on: ubuntu-latest
+    needs: [changes, build]
+    if: |
+      (needs.changes.outputs.api == 'true' || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch') &&
+      (github.event_name != 'workflow_dispatch' || inputs.deploy_api)
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build API
+        run: npm run build --workspace=api
+
+      - name: Generate Prisma client
+        working-directory: apps/api
+        run: npx prisma generate
+
+      - name: Create deployment package
+        id: package
+        run: |
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
+          LAMBDA_FUNCTION="${PROJECT_NAME}-${ENVIRONMENT}-api"
+
+          echo "Creating deployment package for $LAMBDA_FUNCTION"
+
+          cd apps/api
+
+          # Create deployment directory
+          rm -rf deployment lambda-deploy.zip
+          mkdir -p deployment
+
+          # Copy built files
+          cp -r dist deployment/
+          cp package.json package-lock.json deployment/
+
+          # Copy Prisma
+          mkdir -p deployment/prisma
+          cp prisma/schema.prisma deployment/prisma/
+
+          # Install production dependencies in deployment folder
+          cd deployment
+          npm ci --omit=dev
+          cd ..
+
+          # Copy shared package (TypeScript source - no build step)
+          mkdir -p deployment/node_modules/@steno/shared
+          cp -r ../../packages/shared/types deployment/node_modules/@steno/shared/
+          cp -r ../../packages/shared/constants deployment/node_modules/@steno/shared/
+          cp -r ../../packages/shared/schemas deployment/node_modules/@steno/shared/
+          cp ../../packages/shared/index.ts deployment/node_modules/@steno/shared/
+          cp ../../packages/shared/package.json deployment/node_modules/@steno/shared/
+
+          # Create Lambda entry point
+          cat > deployment/index.js << 'EOF'
+          const { handler } = require('./dist/handlers/api.js');
+          module.exports = { handler };
+          EOF
+
+          # Create zip (exclude .ts files except in @steno/shared which is raw TS)
+          cd deployment
+          zip -r -q ../lambda-deploy.zip . -x "*.map" "*.md" "tests/*" "*.test.*"
+          cd ..
+
+          PACKAGE_SIZE=$(du -h lambda-deploy.zip | cut -f1)
+          echo "Package size: $PACKAGE_SIZE"
+
+          echo "package_path=apps/api/lambda-deploy.zip" >> $GITHUB_OUTPUT
+          echo "lambda_function=$LAMBDA_FUNCTION" >> $GITHUB_OUTPUT
+
+      - name: Upload to S3 (for large packages)
+        id: upload
+        run: |
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
+          LAMBDA_FUNCTION="${{ steps.package.outputs.lambda_function }}"
+          PACKAGE_PATH="${{ steps.package.outputs.package_path }}"
+
+          PACKAGE_SIZE=$(stat -c%s "$PACKAGE_PATH" 2>/dev/null || stat -f%z "$PACKAGE_PATH" 2>/dev/null)
+
+          # If > 50MB, upload to S3
+          if [ "$PACKAGE_SIZE" -gt 52428800 ]; then
+            S3_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-deployments"
+            S3_KEY="lambda/${LAMBDA_FUNCTION}/deploy-${{ github.sha }}.zip"
+
+            # Create bucket if needed
+            aws s3 mb "s3://${S3_BUCKET}" --region ${{ env.AWS_REGION }} 2>/dev/null || true
+
+            # Upload
+            aws s3 cp "$PACKAGE_PATH" "s3://${S3_BUCKET}/${S3_KEY}"
+
+            echo "use_s3=true" >> $GITHUB_OUTPUT
+            echo "s3_bucket=$S3_BUCKET" >> $GITHUB_OUTPUT
+            echo "s3_key=$S3_KEY" >> $GITHUB_OUTPUT
+          else
+            echo "use_s3=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy Lambda (direct)
+        if: steps.upload.outputs.use_s3 != 'true'
+        run: |
+          aws lambda update-function-code \
+            --function-name "${{ steps.package.outputs.lambda_function }}" \
+            --zip-file "fileb://${{ steps.package.outputs.package_path }}" \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Deploy Lambda (from S3)
+        if: steps.upload.outputs.use_s3 == 'true'
+        run: |
+          aws lambda update-function-code \
+            --function-name "${{ steps.package.outputs.lambda_function }}" \
+            --s3-bucket "${{ steps.upload.outputs.s3_bucket }}" \
+            --s3-key "${{ steps.upload.outputs.s3_key }}" \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for Lambda update
+        run: |
+          aws lambda wait function-updated \
+            --function-name "${{ steps.package.outputs.lambda_function }}" \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Verify deployment
+        run: |
+          aws lambda get-function \
+            --function-name "${{ steps.package.outputs.lambda_function }}" \
+            --query 'Configuration.{LastModified:LastModified,State:State,CodeSize:CodeSize}' \
+            --region ${{ env.AWS_REGION }}
+
+  # Deploy Frontend
+  deploy-frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    needs: [changes, build]
+    if: |
+      (needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch') &&
+      (github.event_name != 'workflow_dispatch' || inputs.deploy_frontend)
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Frontend
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+        run: npm run build --workspace=@steno/web
+
+      - name: Deploy to S3
+        id: deploy
+        run: |
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
+          S3_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-frontend"
+
+          echo "Deploying to s3://$S3_BUCKET"
+
+          # Sync with proper cache headers
+          # HTML - no cache
+          aws s3 sync apps/web/out "s3://${S3_BUCKET}" \
+            --delete \
+            --exclude "*" \
+            --include "*.html" \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --content-type "text/html"
+
+          # JS - immutable cache
+          aws s3 sync apps/web/out "s3://${S3_BUCKET}" \
+            --exclude "*" \
+            --include "*.js" \
+            --cache-control "public, max-age=31536000, immutable"
+
+          # CSS - immutable cache
+          aws s3 sync apps/web/out "s3://${S3_BUCKET}" \
+            --exclude "*" \
+            --include "*.css" \
+            --cache-control "public, max-age=31536000, immutable"
+
+          # Other assets - 1 day cache
+          aws s3 sync apps/web/out "s3://${S3_BUCKET}" \
+            --exclude "*.html" \
+            --exclude "*.js" \
+            --exclude "*.css" \
+            --cache-control "public, max-age=86400"
+
+          echo "s3_bucket=$S3_BUCKET" >> $GITHUB_OUTPUT
+
+      - name: Get CloudFront Distribution ID
+        id: cloudfront
+        run: |
+          S3_BUCKET="${{ steps.deploy.outputs.s3_bucket }}"
+
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Origins.Items[?contains(DomainName, '${S3_BUCKET}')]].Id | [0]" \
+            --output text)
+
+          if [ "$DISTRIBUTION_ID" != "None" ] && [ -n "$DISTRIBUTION_ID" ]; then
+            echo "distribution_id=$DISTRIBUTION_ID" >> $GITHUB_OUTPUT
+            echo "Found CloudFront distribution: $DISTRIBUTION_ID"
+          else
+            echo "No CloudFront distribution found"
+          fi
+
+      - name: Invalidate CloudFront cache
+        if: steps.cloudfront.outputs.distribution_id
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.cloudfront.outputs.distribution_id }}" \
+            --paths "/*"
+
+      - name: Get deployment URL
+        if: steps.cloudfront.outputs.distribution_id
+        run: |
+          DOMAIN=$(aws cloudfront get-distribution \
+            --id "${{ steps.cloudfront.outputs.distribution_id }}" \
+            --query 'Distribution.DomainName' \
+            --output text)
+
+          echo "Frontend deployed to: https://${DOMAIN}"
+
+  # Summary
+  summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-api, deploy-frontend]
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| API | ${{ needs.deploy-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ needs.deploy-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "Branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
