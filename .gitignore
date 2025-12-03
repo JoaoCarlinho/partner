@@ -61,3 +61,4 @@ eb-deploy/
 **/e2e/demo-report/
 **/playwright-report/
 **/test-results/
+apps/api/src/handlers/seed.ts
