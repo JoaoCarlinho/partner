@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { StatusBadge, DemandLetterStatus } from '@/components/StatusBadge';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 interface ComplianceCheck {
   rule: string;
@@ -24,7 +24,7 @@ export interface DemandLetter {
     isCompliant: boolean;
     score: number;
     checks: ComplianceCheck[];
-  };
+  } | null;
   createdAt: string;
   updatedAt: string;
   template?: {
@@ -120,7 +120,8 @@ export function DemandLetterList({ caseId, onGenerateLetter }: DemandLetterListP
       }
 
       const data = await response.json();
-      const fetchedLetters: DemandLetter[] = data.data || [];
+      // API returns { data: { items: [...], pagination: {...} } }
+      const fetchedLetters: DemandLetter[] = data.data?.items || data.data || [];
       setLetters(fetchedLetters);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');

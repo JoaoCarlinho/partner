@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CollectorNav } from '@/components/CollectorNav';
+import { useDeleteCase } from '@/hooks/useDeleteCase';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 interface Case {
   id: string;
@@ -67,6 +68,8 @@ export default function CasesPage() {
   });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [caseToDelete, setCaseToDelete] = useState<Case | null>(null);
+  const { deleteCase, isDeleting, error: deleteError, clearError } = useDeleteCase();
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -164,6 +167,18 @@ export default function CasesPage() {
       setCreating(false);
     }
   };
+
+  const handleDeleteCase = async () => {
+    if (!caseToDelete) return;
+
+    const success = await deleteCase(caseToDelete.id);
+    if (success) {
+      setCaseToDelete(null);
+      fetchCases();
+    }
+  };
+
+  const isAdmin = user?.role === 'FIRM_ADMIN';
 
   if (!user) {
     return (
@@ -304,12 +319,22 @@ export default function CasesPage() {
                         : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <Link
-                        href={`/cases/view?id=${c.id}`}
-                        className="text-primary-600 hover:text-primary-900 text-sm font-medium"
-                      >
-                        View
-                      </Link>
+                      <div className="flex items-center justify-end gap-3">
+                        <Link
+                          href={`/cases/view?id=${c.id}`}
+                          className="text-primary-600 hover:text-primary-900 text-sm font-medium"
+                        >
+                          View
+                        </Link>
+                        {isAdmin && (
+                          <button
+                            onClick={() => setCaseToDelete(c)}
+                            className="text-red-600 hover:text-red-900 text-sm font-medium"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -393,6 +418,60 @@ export default function CasesPage() {
                 className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
                 {creating ? 'Creating...' : 'Create Case'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {caseToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Delete Case</h3>
+
+            {deleteError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {deleteError}
+              </div>
+            )}
+
+            <p className="text-gray-600 mb-2">
+              Are you sure you want to delete this case?
+            </p>
+            <div className="bg-gray-50 rounded-lg p-3 mb-4">
+              <p className="text-sm">
+                <span className="font-medium">Reference:</span>{' '}
+                {caseToDelete.referenceNumber || caseToDelete.id.substring(0, 8)}
+              </p>
+              <p className="text-sm">
+                <span className="font-medium">Debtor:</span> {caseToDelete.debtorName}
+              </p>
+              <p className="text-sm">
+                <span className="font-medium">Amount:</span> ${Number(caseToDelete.debtAmount).toLocaleString()}
+              </p>
+            </div>
+            <p className="text-sm text-red-600 mb-4">
+              This action cannot be undone. Cases with demand letters cannot be deleted.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setCaseToDelete(null);
+                  clearError();
+                }}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteCase}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Case'}
               </button>
             </div>
           </div>

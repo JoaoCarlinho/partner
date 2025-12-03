@@ -17,7 +17,7 @@ export interface ComplianceResult {
 }
 
 interface CompliancePanelProps {
-  complianceResult: ComplianceResult;
+  complianceResult: ComplianceResult | null | undefined;
   className?: string;
 }
 
@@ -60,6 +60,16 @@ function getCheckStyle(check: ComplianceCheck) {
  * CompliancePanel - Displays compliance score and check statuses (AC-2.1.3, AC-2.1.4)
  */
 export function CompliancePanel({ complianceResult, className = '' }: CompliancePanelProps) {
+  // Handle null/undefined complianceResult gracefully
+  if (!complianceResult) {
+    return (
+      <div className={`bg-white rounded-lg border border-gray-200 p-4 ${className}`}>
+        <h3 className="text-sm font-medium text-gray-700 mb-2">Compliance Score</h3>
+        <p className="text-sm text-gray-500">Compliance check not yet performed</p>
+      </div>
+    );
+  }
+
   const { score, checks } = complianceResult;
   const scoreColor = getScoreColor(score);
   const progressBarColor = getProgressBarColor(score);

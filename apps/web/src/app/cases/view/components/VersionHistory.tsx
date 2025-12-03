@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Clock, User, FileText, ChevronRight, RefreshCw, GitCompare } from 'lucide-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 /**
  * Version interface from API

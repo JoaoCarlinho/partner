@@ -6,7 +6,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { DemandLetterStatus } from '@/components/StatusBadge';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 /**
  * Approval action types

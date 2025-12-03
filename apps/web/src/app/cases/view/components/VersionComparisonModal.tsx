@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, RefreshCw, Plus, Minus, ChevronDown, ChevronUp } from 'lucide-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 /**
  * DiffLine represents a single line in the diff output

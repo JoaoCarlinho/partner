@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export interface UsePdfPreviewOptions {
   /** The demand letter ID to preview */

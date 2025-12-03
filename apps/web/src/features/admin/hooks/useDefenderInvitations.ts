@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://d1comazpq780af.cloudfront.net';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export interface DefenderInvitation {
   id: string;
