@@ -161,3 +161,140 @@ export class RefinementError extends Error {
     this.cause = cause;
   }
 }
+
+export interface LetterIssue {
+  severity: 'high' | 'medium' | 'low';
+  issue: string;
+  suggestion: string;
+}
+
+export interface AnalysisResult {
+  analysis: string;
+  issues: LetterIssue[];
+  overallTone: string;
+  suggestedActions: string[];
+  modelMetadata: {
+    modelId: string;
+    latencyMs: number;
+    inputTokens: number;
+    outputTokens: number;
+  };
+}
+
+const ANALYSIS_SYSTEM_PROMPT = `You are an expert legal writing analyst specializing in debt collection communications and FDCPA compliance. Your role is to analyze demand letters and provide constructive feedback to help improve them.
+
+You should:
+1. Identify tone issues (aggressive, threatening, unprofessional language)
+2. Check for potential compliance concerns
+3. Suggest improvements that maintain effectiveness while being professional
+4. Highlight positive aspects of the letter
+5. Focus on helping the paralegal create an effective, compliant, and professional letter
+
+Be specific and actionable in your feedback. Your tone should be helpful and supportive, like a senior colleague reviewing work.`;
+
+/**
+ * Analyze a demand letter and provide feedback
+ */
+export async function analyzeLetter(
+  content: string,
+  context?: RefinementContext
+): Promise<AnalysisResult> {
+  const prompt = `Please analyze the following demand letter and provide feedback.
+
+<letter>
+${content}
+</letter>
+
+Analyze this letter for:
+1. Overall tone and professionalism
+2. Potential issues that should be addressed
+3. Suggested improvements
+
+Respond in the following JSON format:
+{
+  "analysis": "A brief overall assessment of the letter (2-3 sentences)",
+  "overallTone": "One of: professional, formal, neutral, somewhat aggressive, aggressive, threatening",
+  "issues": [
+    {
+      "severity": "high|medium|low",
+      "issue": "Description of the issue",
+      "suggestion": "How to fix it"
+    }
+  ],
+  "suggestedActions": ["List of specific improvements to make"]
+}
+
+Focus on the most important issues first. Be constructive and helpful.`;
+
+  logger.info('Analyzing letter', {
+    contentLength: content.length,
+  });
+
+  try {
+    const result = await invokeModel(prompt, {
+      systemPrompt: ANALYSIS_SYSTEM_PROMPT,
+      maxTokens: 2048,
+      temperature: 0.3, // Lower temperature for more consistent analysis
+    });
+
+    // Parse the JSON response
+    let analysisData: {
+      analysis: string;
+      overallTone: string;
+      issues: LetterIssue[];
+      suggestedActions: string[];
+    };
+
+    try {
+      // Try to extract JSON from the response
+      const jsonMatch = result.content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        analysisData = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON found in response');
+      }
+    } catch (parseError) {
+      logger.warn('Failed to parse analysis JSON, using fallback', {
+        error: parseError instanceof Error ? parseError.message : 'Unknown error',
+      });
+      // Fallback response if parsing fails
+      analysisData = {
+        analysis: 'I reviewed the letter and have some suggestions for improvement.',
+        overallTone: 'neutral',
+        issues: [],
+        suggestedActions: ['Consider reviewing the tone of the letter', 'Ensure all required disclosures are present'],
+      };
+    }
+
+    logger.info('Letter analysis completed', {
+      overallTone: analysisData.overallTone,
+      issueCount: analysisData.issues.length,
+      latencyMs: result.latencyMs,
+    });
+
+    return {
+      analysis: analysisData.analysis,
+      overallTone: analysisData.overallTone,
+      issues: analysisData.issues || [],
+      suggestedActions: analysisData.suggestedActions || [],
+      modelMetadata: {
+        modelId: result.modelId,
+        latencyMs: result.latencyMs,
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+      },
+    };
+  } catch (error) {
+    if (error instanceof BedrockError) {
+      logger.error('Bedrock error during letter analysis', {
+        error: error.message,
+        cause: error.cause?.message,
+      });
+      throw new RefinementError(
+        'Failed to analyze letter: AI service unavailable',
+        error
+      );
+    }
+    throw error;
+  }
+}

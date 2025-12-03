@@ -5,12 +5,12 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
-import { authorize } from '../middleware/authorize.js';
+import { authorize, requireAdmin } from '../middleware/authorize.js';
 import { validate } from '../middleware/validate.js';
 import { successResponse, errorResponse } from '../lib/response.js';
 import { generateLetterSchema, createCaseSchema, createInvitationSchema, AuditAction } from '@steno/shared';
 import { generateLetter, generateLetterStream, LetterGenerationError } from '../services/ai/letterGenerator.js';
-import { refineLetter, RefinementError } from '../services/ai/letterRefiner.js';
+import { refineLetter, analyzeLetter, RefinementError } from '../services/ai/letterRefiner.js';
 import { COMMON_REFINEMENT_SUGGESTIONS } from '../services/ai/prompts/letterRefinement.js';
 import { generateDiff } from '../services/diff/textDiff.js';
 import {
@@ -263,6 +263,76 @@ router.post(
 );
 
 /**
+ * DELETE /api/v1/demands/cases/:id
+ * Delete a case (ADMIN ONLY)
+ * Only deletes cases with no associated demand letters
+ */
+router.delete(
+  '/cases/:id',
+  requireAdmin,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const organizationId = req.user!.organizationId;
+
+      // Find the case
+      const caseRecord = await prisma.case.findFirst({
+        where: { id, organizationId },
+        include: {
+          demandLetters: { select: { id: true } },
+          messages: { select: { id: true } },
+        },
+      });
+
+      if (!caseRecord) {
+        res.status(404).json(errorResponse('Case not found', 'NOT_FOUND'));
+        return;
+      }
+
+      // Check if case has any demand letters
+      if (caseRecord.demandLetters.length > 0) {
+        res.status(400).json(
+          errorResponse(
+            'Cannot delete case with existing demand letters. Delete the demand letters first.',
+            'HAS_DEMAND_LETTERS'
+          )
+        );
+        return;
+      }
+
+      // Delete associated messages first
+      if (caseRecord.messages.length > 0) {
+        await prisma.message.deleteMany({
+          where: { caseId: id },
+        });
+      }
+
+      // Delete the case
+      await prisma.case.delete({ where: { id } });
+
+      logAuditEvent(req, {
+        action: AuditAction.CASE_DELETED,
+        resourceType: 'Case',
+        resourceId: id,
+        metadata: {
+          debtorName: caseRecord.debtorName,
+          creditorName: caseRecord.creditorName,
+        },
+      });
+
+      logger.info('Case deleted', {
+        caseId: id,
+        deletedBy: req.user!.id,
+      });
+
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * GET /api/v1/demands/refinement-suggestions
  * Get common refinement suggestions
  */
@@ -330,39 +400,51 @@ router.post(
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
 
+        // Send immediate heartbeat to prevent CloudFront 60s timeout
+        res.write(`data: ${JSON.stringify({ type: 'started', message: 'Generating letter...' })}\n\n`);
+
+        // Set up heartbeat interval to keep connection alive during AI processing
+        const heartbeatInterval = setInterval(() => {
+          res.write(`data: ${JSON.stringify({ type: 'heartbeat' })}\n\n`);
+        }, 25000); // Send heartbeat every 25 seconds (before 60s timeout)
+
         let fullContent = '';
 
-        for await (const chunk of generateLetterStream(caseDetails, templateContent)) {
-          if (chunk.type === 'content') {
-            fullContent += chunk.content;
-            res.write(`data: ${JSON.stringify({ type: 'content', content: chunk.content })}\n\n`);
-          } else if (chunk.type === 'compliance') {
-            res.write(`data: ${JSON.stringify({ type: 'compliance', result: chunk.complianceResult })}\n\n`);
-          } else if (chunk.type === 'done') {
-            // Save the generated letter
-            const demandLetter = await prisma.demandLetter.create({
-              data: {
-                organizationId,
-                caseId,
-                templateId,
-                content: fullContent,
-                status: 'DRAFT',
-                complianceResult: chunk.complianceResult as object,
-              },
-            });
+        try {
+          for await (const chunk of generateLetterStream(caseDetails, templateContent)) {
+            if (chunk.type === 'content') {
+              fullContent += chunk.content;
+              res.write(`data: ${JSON.stringify({ type: 'content', content: chunk.content })}\n\n`);
+            } else if (chunk.type === 'compliance') {
+              res.write(`data: ${JSON.stringify({ type: 'compliance', result: chunk.complianceResult })}\n\n`);
+            } else if (chunk.type === 'done') {
+              // Save the generated letter
+              const demandLetter = await prisma.demandLetter.create({
+                data: {
+                  organizationId,
+                  caseId,
+                  templateId,
+                  content: fullContent,
+                  status: 'DRAFT',
+                  complianceResult: chunk.complianceResult as object,
+                },
+              });
 
-            res.write(`data: ${JSON.stringify({ type: 'done', id: demandLetter.id })}\n\n`);
+              res.write(`data: ${JSON.stringify({ type: 'done', id: demandLetter.id })}\n\n`);
 
-            // Audit log
-            logAuditEvent(req, {
-              action: AuditAction.DEMAND_LETTER_GENERATED,
-              resourceType: 'DemandLetter',
-              resourceId: demandLetter.id,
-              metadata: { caseId, templateId, streaming: true },
-            });
-          } else if (chunk.type === 'error') {
-            res.write(`data: ${JSON.stringify({ type: 'error', error: chunk.error })}\n\n`);
+              // Audit log
+              logAuditEvent(req, {
+                action: AuditAction.DEMAND_LETTER_GENERATED,
+                resourceType: 'DemandLetter',
+                resourceId: demandLetter.id,
+                metadata: { caseId, templateId, streaming: true },
+              });
+            } else if (chunk.type === 'error') {
+              res.write(`data: ${JSON.stringify({ type: 'error', error: chunk.error })}\n\n`);
+            }
           }
+        } finally {
+          clearInterval(heartbeatInterval);
         }
 
         res.end();
@@ -665,17 +747,28 @@ router.post(
         return;
       }
 
-      // Save current version before refinement
+      // Save current version before refinement (only if it doesn't already exist)
       const currentVersion = demandLetter.currentVersion;
-      await prisma.demandLetterVersion.create({
-        data: {
-          demandLetterId: demandId,
-          version: currentVersion,
-          content: demandLetter.content,
-          complianceResult: demandLetter.complianceResult as object,
-          createdBy: userId,
+      const existingVersion = await prisma.demandLetterVersion.findUnique({
+        where: {
+          demandLetterId_version: {
+            demandLetterId: demandId,
+            version: currentVersion,
+          },
         },
       });
+
+      if (!existingVersion) {
+        await prisma.demandLetterVersion.create({
+          data: {
+            demandLetterId: demandId,
+            version: currentVersion,
+            content: demandLetter.content,
+            complianceResult: demandLetter.complianceResult as object,
+            createdBy: userId,
+          },
+        });
+      }
 
       // Refine the letter
       const result = await refineLetter(
@@ -750,6 +843,72 @@ router.post(
         logger.error('Letter refinement failed', { error: error.message });
         res.status(503).json(
           errorResponse('Letter refinement service unavailable', 'SERVICE_UNAVAILABLE')
+        );
+        return;
+      }
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/demands/:demandId/analyze
+ * Proactively analyze a demand letter and provide feedback
+ */
+router.post(
+  '/:demandId/analyze',
+  authorize('demands:read'),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { demandId } = req.params;
+      const organizationId = req.user!.organizationId;
+
+      // Get the demand letter
+      const demandLetter = await prisma.demandLetter.findFirst({
+        where: { id: demandId, organizationId },
+        include: {
+          case: true,
+        },
+      });
+
+      if (!demandLetter) {
+        res.status(404).json(errorResponse('Demand letter not found', 'NOT_FOUND'));
+        return;
+      }
+
+      // Analyze the letter
+      const result = await analyzeLetter(
+        demandLetter.content,
+        {
+          state: 'NY', // TODO: Get from case metadata
+          debtDetails: {
+            principal: Number(demandLetter.case.debtAmount),
+            originDate: new Date().toISOString().split('T')[0],
+            creditorName: demandLetter.case.creditorName,
+          },
+        }
+      );
+
+      logger.info('Letter analyzed', {
+        demandLetterId: demandId,
+        overallTone: result.overallTone,
+        issueCount: result.issues.length,
+      });
+
+      res.json(
+        successResponse({
+          id: demandId,
+          analysis: result.analysis,
+          overallTone: result.overallTone,
+          issues: result.issues,
+          suggestedActions: result.suggestedActions,
+        })
+      );
+    } catch (error) {
+      if (error instanceof RefinementError) {
+        logger.error('Letter analysis failed', { error: error.message });
+        res.status(503).json(
+          errorResponse('Letter analysis service unavailable', 'SERVICE_UNAVAILABLE')
         );
         return;
       }
