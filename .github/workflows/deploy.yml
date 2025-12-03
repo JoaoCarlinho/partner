@@ -30,8 +30,9 @@ env:
   NODE_VERSION: '20'
   EB_APPLICATION: steno-prod-backend
   EB_ENVIRONMENT: steno-prod-backend-vpc
-  # Default API URL pointing to Elastic Beanstalk
-  DEFAULT_API_URL: http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com
+  # CloudFront proxy config: API requests to /api/* are routed to Elastic Beanstalk
+  # Frontend uses relative paths, no NEXT_PUBLIC_API_URL needed
+  CLOUDFRONT_DISTRIBUTION_ID: E3ALDBSAD2MLK6
 
 jobs:
   # Determine what changed
@@ -81,8 +82,7 @@ jobs:
 
       - name: Build Frontend
         if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
-        env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || env.DEFAULT_API_URL }}
+        # No NEXT_PUBLIC_API_URL needed - CloudFront proxies /api/* to Elastic Beanstalk
         run: npm run build --workspace=@steno/web
 
       - name: Run API tests
@@ -279,8 +279,7 @@ jobs:
         run: npm ci
 
       - name: Build Frontend
-        env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || env.DEFAULT_API_URL }}
+        # No NEXT_PUBLIC_API_URL needed - CloudFront proxies /api/* to Elastic Beanstalk
         run: npm run build --workspace=@steno/web
 
       - name: Deploy to S3

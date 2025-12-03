@@ -14,6 +14,7 @@ export const PERMISSIONS: Record<Role, string[]> = {
   [Role.PARALEGAL]: [
     'demands:create',
     'demands:read',
+    'demands:update',
     'cases:read',
     'messages:send',
     'templates:view',

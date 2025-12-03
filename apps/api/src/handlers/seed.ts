@@ -117,6 +117,8 @@ router.post('/', async (req: Request, res: Response) => {
         update: {
           passwordHash,
           emailVerified: true,
+          organizationId: organization.id,
+          role: user.role,
         },
         create: {
           email: user.email,
@@ -185,6 +187,8 @@ router.post('/', async (req: Request, res: Response) => {
       update: {
         passwordHash,
         emailVerified: true,
+        organizationId: organization.id,
+        role: 'DEBTOR',
       },
       create: {
         email: 'john.debtor@example.com',
@@ -240,6 +244,8 @@ router.post('/', async (req: Request, res: Response) => {
       update: {
         passwordHash,
         emailVerified: true,
+        organizationId: defenderOrg.id,
+        role: 'PUBLIC_DEFENDER',
       },
       create: {
         email: 'defender@legalaid.org',

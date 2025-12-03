@@ -6,7 +6,8 @@ const nextConfig = {
     unoptimized: true,
   },
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://d1comazpq780af.cloudfront.net',
+    // Empty string means use relative paths - CloudFront proxies /api/* to Elastic Beanstalk
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '',
   },
 };
 
