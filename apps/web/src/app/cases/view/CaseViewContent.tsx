@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CollectorNav } from '@/components/CollectorNav';
-import { RefinementPanel, RefinementResult } from './components/RefinementPanel';
+import { RefinementChat, RefinementResult, AnalysisResult } from './components/RefinementChat';
 import { VersionToolbar } from './components/VersionToolbar';
 import { DemandLetterList } from './components/DemandLetterList';
 import { DemandLetterDetail } from './components/DemandLetterDetail';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 interface Case {
   id: string;
@@ -202,6 +202,7 @@ export default function CaseViewContent() {
 
     try {
       const token = localStorage.getItem('authToken');
+      // Use streaming to avoid CloudFront timeout on long AI generation
       const response = await fetch(`${API_URL}/api/v1/demands/generate`, {
         method: 'POST',
         headers: {
@@ -219,15 +220,16 @@ export default function CaseViewContent() {
             },
             stateJurisdiction: 'NY', // Default state - could be made dynamic
           },
+          options: { stream: true }, // Enable streaming to avoid timeout
         }),
       });
 
       if (!response.ok) {
         const data = await response.json();
-        
+
         // Extract detailed validation errors if available
         let errorMessage = data.error?.message || 'Failed to generate letter';
-        
+
         if (data.error?.details) {
           const detailMessages = Object.entries(data.error.details)
             .map(([field, errors]) => {
@@ -235,23 +237,66 @@ export default function CaseViewContent() {
               return `${field}: ${errorList}`;
             })
             .join('\n');
-          
+
           if (detailMessages) {
             errorMessage = `${errorMessage}\n\nValidation errors:\n${detailMessages}`;
           }
         }
-        
+
         throw new Error(errorMessage);
       }
 
-      const data = await response.json();
-      setGeneratedLetter({
-        id: data.data.id,
-        content: data.data.content,
-        status: data.data.status || 'DRAFT',
-        currentVersion: data.data.currentVersion || data.data.version || 1,
-        totalVersions: data.data.totalVersions || data.data.currentVersion || 1,
-      });
+      // Handle SSE streaming response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Streaming not supported');
+      }
+
+      const decoder = new TextDecoder();
+      let content = '';
+      let letterId = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'started' || data.type === 'heartbeat') {
+                // Heartbeat events keep the connection alive - no UI update needed
+                continue;
+              } else if (data.type === 'content') {
+                content += data.content;
+                // Update UI progressively
+                setGeneratedLetter({
+                  id: letterId || 'generating...',
+                  content: content,
+                  status: 'GENERATING',
+                  currentVersion: 1,
+                  totalVersions: 1,
+                });
+              } else if (data.type === 'done') {
+                letterId = data.id;
+                setGeneratedLetter({
+                  id: data.id,
+                  content: content,
+                  status: 'DRAFT',
+                  currentVersion: 1,
+                  totalVersions: 1,
+                });
+              } else if (data.type === 'error') {
+                throw new Error(data.error);
+              }
+            } catch (parseError) {
+              // Skip invalid JSON lines (like empty lines)
+            }
+          }
+        }
+      }
     } catch (error) {
       setGenerateError(error instanceof Error ? error.message : 'Failed to generate letter');
     } finally {
@@ -311,6 +356,35 @@ export default function CaseViewContent() {
 
   const handleRejectRefinement = () => {
     // Just dismiss the results, original content is preserved
+  };
+
+  const handleAnalyzeLetter = async (): Promise<AnalysisResult> => {
+    if (!generatedLetter) {
+      throw new Error('No letter to analyze');
+    }
+
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_URL}/api/v1/demands/${generatedLetter.id}/analyze`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error?.message || 'Failed to analyze letter');
+    }
+
+    const data = await response.json();
+    return {
+      analysis: data.data?.analysis || data.analysis || '',
+      overallTone: data.data?.overallTone || data.overallTone || 'neutral',
+      issues: data.data?.issues || data.issues || [],
+      suggestedActions: data.data?.suggestedActions || data.suggestedActions || [],
+    };
   };
 
   const handleVersionChange = (newContent: string, newVersion: number, newTotalVersions: number) => {
@@ -503,15 +577,16 @@ export default function CaseViewContent() {
               </div>
             )}
 
-            {/* AI Refinement Panel - Only show for DRAFT letters */}
+            {/* AI Refinement Chat - Only show for DRAFT letters */}
             {generatedLetter && (!generatedLetter.status || generatedLetter.status === 'DRAFT') && (
               <div className="mt-6">
-                <RefinementPanel
+                <RefinementChat
                   letterId={generatedLetter.id}
-                  originalContent={generatedLetter.content}
+                  letterContent={generatedLetter.content}
                   onRefine={handleRefineLetter}
                   onAccept={handleAcceptRefinement}
                   onReject={handleRejectRefinement}
+                  onAnalyze={handleAnalyzeLetter}
                 />
               </div>
             )}

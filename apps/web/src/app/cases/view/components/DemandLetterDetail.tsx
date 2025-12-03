@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle, AlertCircle, X, Trash2 } from 'lucide-react';
 import { StatusBadge, DemandLetterStatus } from '@/components/StatusBadge';
 import { CompliancePanel, ComplianceCheck, ComplianceResult } from './CompliancePanel';
 import { DemandLetterEditor } from './DemandLetterEditor';
@@ -16,8 +16,9 @@ import { ApprovalHistoryTimeline } from './ApprovalHistoryTimeline';
 import { PdfPreviewButton } from './PdfPreviewButton';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import { UserRole } from '@/utils/roleUtils';
+import { RefinementChat, RefinementResult, AnalysisResult } from './RefinementChat';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 /**
  * Full DemandLetter interface for detail view (from API)
@@ -29,7 +30,7 @@ export interface DemandLetterDetail {
   content: string;
   status: DemandLetterStatus;
   currentVersion: number;
-  complianceResult: ComplianceResult;
+  complianceResult: ComplianceResult | null;
   createdAt: string;
   updatedAt: string;
   case: {
@@ -101,6 +102,10 @@ export function DemandLetterDetail({ caseId, letterId }: DemandLetterDetailProps
 
   // Epic 6: PDF Preview state
   const [showPdfPreview, setShowPdfPreview] = useState(false);
+
+  // Delete confirmation state (Admin only)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Load user role from localStorage
   useEffect(() => {
@@ -210,6 +215,151 @@ export function DemandLetterDetail({ caseId, letterId }: DemandLetterDetailProps
     setTimeout(() => setToast(null), 5000);
   }, []);
 
+  /**
+   * Handle AI refinement of letter content
+   */
+  const handleRefineLetter = useCallback(async (instruction: string): Promise<RefinementResult> => {
+    if (!letter) {
+      throw new Error('No letter to refine');
+    }
+
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_URL}/api/v1/demands/${letter.id}/refine`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      credentials: 'include',
+      body: JSON.stringify({ instruction }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error?.message || 'Failed to refine letter');
+    }
+
+    const data = await response.json();
+    return {
+      id: data.data?.id || data.id || letter.id,
+      content: data.data?.content || data.content,
+      version: data.data?.version || data.version || 1,
+      previousVersion: data.data?.previousVersion || data.previousVersion || 1,
+      refinementInstruction: instruction,
+      complianceResult: data.data?.complianceResult || data.complianceResult || {
+        isCompliant: true,
+        score: 85,
+        checks: [],
+      },
+      diff: data.data?.diff || data.diff || { additions: 0, deletions: 0 },
+      warnings: data.data?.warnings || data.warnings || [],
+    };
+  }, [letter]);
+
+  /**
+   * Handle AI analysis of letter content
+   */
+  const handleAnalyzeLetter = useCallback(async (): Promise<AnalysisResult> => {
+    if (!letter) {
+      throw new Error('No letter to analyze');
+    }
+
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_URL}/api/v1/demands/${letter.id}/analyze`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error?.message || 'Failed to analyze letter');
+    }
+
+    const data = await response.json();
+    return {
+      analysis: data.data?.analysis || data.analysis || '',
+      overallTone: data.data?.overallTone || data.overallTone || 'neutral',
+      issues: data.data?.issues || data.issues || [],
+      suggestedActions: data.data?.suggestedActions || data.suggestedActions || [],
+    };
+  }, [letter]);
+
+  /**
+   * Handle accepting a refinement result
+   */
+  const handleAcceptRefinement = useCallback((result: RefinementResult) => {
+    setLetter((prev) => prev ? {
+      ...prev,
+      content: result.content,
+      currentVersion: result.version,
+      // Map the compliance result to match the ComplianceResult type from CompliancePanel
+      complianceResult: result.complianceResult ? {
+        isCompliant: result.complianceResult.isCompliant,
+        score: result.complianceResult.score,
+        checks: result.complianceResult.checks.map(check => ({
+          id: check.id,
+          name: check.name,
+          passed: check.passed,
+          required: true, // Default to required for refined checks
+          message: check.message,
+        })),
+      } as ComplianceResult : prev.complianceResult,
+    } : null);
+    setToast({ type: 'success', message: 'Refinement accepted and applied to the letter' });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  /**
+   * Handle rejecting a refinement
+   */
+  const handleRejectRefinement = useCallback(() => {
+    // Just dismiss the results, original content is preserved
+  }, []);
+
+  /**
+   * Handle delete demand letter (Admin only, Draft status only)
+   */
+  const handleDeleteLetter = useCallback(async () => {
+    if (!letter) return;
+
+    setDeleteLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${API_URL}/api/v1/demands/${letter.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `Failed to delete letter (${response.status})`);
+      }
+
+      setToast({ type: 'success', message: 'Demand letter deleted successfully' });
+      setShowDeleteConfirm(false);
+
+      // Navigate back to case view after short delay
+      setTimeout(() => {
+        router.push(`/cases/view?id=${caseId}`);
+      }, 1000);
+    } catch (err) {
+      setToast({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Failed to delete letter'
+      });
+      setShowDeleteConfirm(false);
+    } finally {
+      setDeleteLoading(false);
+    }
+  }, [letter, caseId, router]);
+
   // Loading state (AC-2.1.6)
   if (loading) {
     return (
@@ -313,17 +463,31 @@ export function DemandLetterDetail({ caseId, letterId }: DemandLetterDetailProps
           <PdfPreviewButton onClick={() => setShowPdfPreview(true)} />
         </div>
 
-        {/* Approval Workflow Actions (Epic 5 - Story 5.1, 5.2, 5.3) */}
-        <ApprovalWorkflow
-          letterId={letter.id}
-          status={letter.status}
-          userRole={userRole}
-          complianceScore={complianceScore}
-          debtorName={letter.case?.debtorName}
-          onStatusChange={handleStatusChange}
-          onSuccess={handleWorkflowSuccess}
-          onError={handleWorkflowError}
-        />
+        <div className="flex items-center gap-3">
+          {/* Approval Workflow Actions (Epic 5 - Story 5.1, 5.2, 5.3) */}
+          <ApprovalWorkflow
+            letterId={letter.id}
+            status={letter.status}
+            userRole={userRole}
+            complianceScore={complianceScore}
+            debtorName={letter.case?.debtorName}
+            onStatusChange={handleStatusChange}
+            onSuccess={handleWorkflowSuccess}
+            onError={handleWorkflowError}
+          />
+
+          {/* Delete Button (Admin only, Draft status only) */}
+          {userRole === 'FIRM_ADMIN' && letter.status === 'DRAFT' && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+              data-testid="delete-letter-button"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Debtor name header (AC-2.1.5) */}
@@ -369,6 +533,21 @@ export function DemandLetterDetail({ caseId, letterId }: DemandLetterDetailProps
               <p className="text-gray-400 italic">No content available</p>
             )}
           </div>
+
+          {/* AI Refinement Chat - Only show for DRAFT letters */}
+          {letter.status === 'DRAFT' && letter.content && (
+            <div className="mt-6">
+              <RefinementChat
+                letterId={letter.id}
+                letterContent={letter.content}
+                beforeCompliance={letter.complianceResult || undefined}
+                onRefine={handleRefineLetter}
+                onAccept={handleAcceptRefinement}
+                onReject={handleRejectRefinement}
+                onAnalyze={handleAnalyzeLetter}
+              />
+            </div>
+          )}
         </div>
 
         {/* Sidebar - Compliance + Metadata + Version History */}
@@ -449,6 +628,59 @@ export function DemandLetterDetail({ caseId, letterId }: DemandLetterDetailProps
         isOpen={showPdfPreview}
         onClose={() => setShowPdfPreview(false)}
       />
+
+      {/* Delete Confirmation Modal (Admin only) */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black bg-opacity-50"
+            onClick={() => !deleteLoading && setShowDeleteConfirm(false)}
+          />
+          {/* Modal */}
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Demand Letter</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">
+              Are you sure you want to delete this draft demand letter? All content and version history will be permanently removed.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleteLoading}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteLetter}
+                disabled={deleteLoading}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 flex items-center gap-2"
+                data-testid="confirm-delete-button"
+              >
+                {deleteLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Delete Letter
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

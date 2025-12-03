@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { DiffViewer } from './DiffViewer';
 import { ComplianceComparison, calculateComplianceChange } from './ComplianceComparison';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://steno-prod-backend-vpc.eba-exhpmgyi.us-east-1.elasticbeanstalk.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 const DEFAULT_SUGGESTIONS = [
   'Make tone more professional',
